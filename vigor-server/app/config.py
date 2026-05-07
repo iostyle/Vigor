@@ -2,10 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        case_sensitive=True
-    )
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 
     DATABASE_URL: str
     REDIS_URL: str
@@ -16,6 +13,9 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     API_KEY: str
     DOUBAO_MOCK_MODE: bool = True
+    DOUYIN_MOCK_MODE: bool = True
+    DOUYIN_API_BASE_URL: str = "https://api.douyin.example.com"
+    DOUYIN_MAX_CONCURRENCY: int = 5
     ENVIRONMENT: str = "development"
 
 
