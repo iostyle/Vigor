@@ -9,9 +9,12 @@ description: Vigor 项目团队配置 - 记录活跃团队、成员分工和协�
 
 - **团队名称**: vigor-dev-team
 - **团队目的**: Vigor 数据采集子系统开发
-- **团队配置文件**: `.claude/teams/vigor-dev-team/config.json`
-- **任务状态目录**: `.claude/tasks/vigor-dev-team/`
+- **团队配置文件**: `.claude/teams/vigor-dev-team/config.json`(权威位置)
+- **任务状态目录**: `.claude/tasks/vigor-dev-team/`(权威位置)
+- **消息收件箱**: `.claude/teams/vigor-dev-team/inboxes/`
 - **创建日期**: 2026-05-07
+
+> Claude Code 默认的 `~/.claude/teams/vigor-dev-team` 和 `~/.claude/tasks/vigor-dev-team` 已通过符号链接指向上述项目目录,所有读写实际发生在项目目录中。
 
 ## 当前活跃成员
 

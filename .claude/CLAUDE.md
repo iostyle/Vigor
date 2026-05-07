@@ -25,6 +25,7 @@ Vigor 是一个基于抖音数据的领域分析平台,分为 Server(数据采�
 - 使用 TeamCreate 创建团队,Agent 派发成员
 - 任务通过 TaskCreate / TaskUpdate 管理
 - 成员间通过 SendMessage 沟通
+- 所有Claude配置存储在当前项目目录中
 
 ### 4. UI 设计
 - UI 借鉴 **Apple 风格**:简洁、优雅、注重留白
@@ -67,24 +68,30 @@ Vigor 是一个基于抖音数据的领域分析平台,分为 Server(数据采�
 
 - **vigor-dev-team**: Vigor 数据采集子系统开发团队
   - 详情见 `.claude/agents/team-config.md`
-  - **项目权威配置**: `.claude/teams/vigor-dev-team/config.json`(git 追踪)
-  - **项目任务归档**: `.claude/tasks/vigor-dev-team/*.json`(git 追踪)
-  - **运行时位置**: `~/.claude/teams/` 和 `~/.claude/tasks/`(系统管理,无法迁移)
+  - **团队配置**: `.claude/teams/vigor-dev-team/config.json`
+  - **任务状态**: `.claude/tasks/vigor-dev-team/*.json`
+  - **消息收件箱**: `.claude/teams/vigor-dev-team/inboxes/`
 
-### 团队配置同步
+### 存储位置
 
-Claude Code 的团队和任务运行时数据由系统固定存放在 `~/.claude/` 下,**无法通过配置改到项目目录**。因此本项目采用"运行时 + 项目归档"模式:
+所有 Claude 配置与运行时数据均存储在**当前项目目录** `.claude/` 下。Claude Code 默认读写 `~/.claude/teams/<team-name>` 和 `~/.claude/tasks/<team-name>`,本项目通过**符号链接**把这两个系统路径指向项目目录:
 
-- 实际读写发生在 `~/.claude/` 下(Claude Code 自动管理)
-- **项目目录 `.claude/teams/` 和 `.claude/tasks/` 作为权威归档**,通过 git 追踪
+```
+~/.claude/teams/vigor-dev-team  →  .claude/teams/vigor-dev-team
+~/.claude/tasks/vigor-dev-team  →  .claude/tasks/vigor-dev-team
+```
 
-阶段性任务完成后,运行同步命令归档:
+这样读写仍然发生在项目目录,能被 git 追踪、随项目迁移。
+
+### 新环境部署
+
+克隆仓库到新机器后,执行以下命令重建符号链接:
 
 ```bash
-# 同步团队配置和任务状态到项目目录
-cp "$HOME/.claude/teams/vigor-dev-team/config.json" .claude/teams/vigor-dev-team/config.json
-cp "$HOME/.claude/tasks/vigor-dev-team/"*.json .claude/tasks/vigor-dev-team/
-git add .claude/ && git commit -m "chore: sync team runtime snapshot"
+cd <project-dir>
+mkdir -p ~/.claude/teams ~/.claude/tasks
+ln -sfn "$PWD/.claude/teams/vigor-dev-team" ~/.claude/teams/vigor-dev-team
+ln -sfn "$PWD/.claude/tasks/vigor-dev-team" ~/.claude/tasks/vigor-dev-team
 ```
 
 详见 `.claude/teams/README.md`
@@ -106,11 +113,12 @@ Vigor/
 │   │   ├── qa-engineer.md
 │   │   ├── domain-expert-template.md
 │   │   └── team-config.md     # 当前团队配置
-│   ├── teams/                 # 团队运行时配置快照
+│   ├── teams/                 # 团队配置(权威位置,~/.claude 通过 symlink 指向此)
 │   │   ├── README.md          # 说明文档
 │   │   └── vigor-dev-team/
-│   │       └── config.json
-│   └── tasks/                 # 任务状态快照
+│   │       ├── config.json
+│   │       └── inboxes/       # 成员消息收件箱
+│   └── tasks/                 # 任务状态(权威位置,~/.claude 通过 symlink 指向此)
 │       └── vigor-dev-team/
 │           └── *.json
 ├── docs/

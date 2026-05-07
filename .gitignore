@@ -47,3 +47,8 @@ htmlcov/
 
 # Logs
 *.log
+
+# Claude Code runtime (lock files and watermarks, not config/state)
+.claude/tasks/*/.lock
+.claude/tasks/*/.highwatermark
+.claude/teams/*/inboxes/

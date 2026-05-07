@@ -1,0 +1,9 @@
+{
+  "id": "8",
+  "subject": "提交变更到 git",
+  "description": "把迁移后的数据和更新后的文档提交到 git 并推送",
+  "activeForm": "提交 git",
+  "status": "in_progress",
+  "blocks": [],
+  "blockedBy": []
+}

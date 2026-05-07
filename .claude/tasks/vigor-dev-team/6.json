@@ -1,0 +1,9 @@
+{
+  "id": "6",
+  "subject": "迁移 teams/tasks 数据到项目目录",
+  "description": "把 ~/.claude/teams/vigor-dev-team 和 ~/.claude/tasks/vigor-dev-team 的内容移到项目 .claude/ 下,然后在 ~/.claude/ 下创建符号链接指回项目目录",
+  "activeForm": "迁移数据并创建符号链接",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

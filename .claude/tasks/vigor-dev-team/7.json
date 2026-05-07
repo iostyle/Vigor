@@ -1,0 +1,9 @@
+{
+  "id": "7",
+  "subject": "更新文档移除 ~/.claude 引用",
+  "description": "修改 CLAUDE.md、agents/team-config.md、teams/README.md,将所有 ~/.claude 引用替换为项目 .claude 路径,并说明符号链接方案",
+  "activeForm": "更新文档",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

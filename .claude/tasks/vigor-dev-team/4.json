@@ -3,7 +3,7 @@
   "subject": "数据库迁移配置",
   "description": "配置 Alembic 数据库迁移工具,初始化 alembic 目录,配置 env.py 导入模型,创建初始迁移脚本,运行迁移创建数据库表,验证表结构正确",
   "activeForm": "配置数据库迁移",
-  "status": "pending",
+  "status": "completed",
   "blocks": [],
   "blockedBy": []
 }

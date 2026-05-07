@@ -1,69 +1,81 @@
 ---
-name: team-runtime-snapshot
-description: 团队运行时配置快照 - 记录当前活跃团队的运行时状态
+name: team-runtime-config
+description: 团队运行时配置 - 团队和任务数据的权威存储位置
 ---
 
-# 团队运行时配置快照
+# 团队运行时配置
 
 ## 说明
 
-此目录保存 Vigor 项目团队的运行时配置**快照**,作为项目内的权威归档,便于追溯和版本控制。
+此目录是 Vigor 项目团队和任务数据的**权威存储位置**,所有读写实际发生在此,并通过 git 追踪。
 
-### 目录结构
+## 目录结构
 
 ```
 .claude/
 ├── teams/
 │   └── vigor-dev-team/
-│       └── config.json          # 团队配置(成员、角色、prompt等)
+│       ├── config.json          # 团队配置(成员、角色、prompt 等)
+│       └── inboxes/             # 成员消息收件箱
+│           ├── team-lead.json
+│           ├── architect.json
+│           └── ...
 └── tasks/
     └── vigor-dev-team/
-        ├── 1.json               # Task #1 数据
-        ├── 2.json               # Task #2 数据
-        ├── 3.json               # Task #3 数据
-        └── 4.json               # Task #4 数据
+        ├── 1.json               # 任务数据
+        ├── 2.json
+        └── ...
 ```
 
-### 重要说明:关于运行时位置
+## 存储位置机制
 
-**Claude Code 的团队与任务运行时数据由系统固定存放在 `~/.claude/` 下**,目前无法通过配置迁移到项目目录。原因是团队状态和任务状态需要跨项目、跨会话被 Claude Code 统一管理。
+Claude Code 默认读写 `~/.claude/teams/<team-name>` 和 `~/.claude/tasks/<team-name>`,本项目通过**符号链接**将这两个系统路径指向项目目录:
 
-因此本项目采用"运行时 + 项目快照"的方式:
+```
+~/.claude/teams/vigor-dev-team  →  .claude/teams/vigor-dev-team
+~/.claude/tasks/vigor-dev-team  →  .claude/tasks/vigor-dev-team
+```
 
-| 用途 | 位置 | 说明 |
-|------|------|------|
-| 运行时读写(系统自动管理) | `~/.claude/teams/vigor-dev-team/` | Claude Code 实时读写 |
-| 运行时读写(系统自动管理) | `~/.claude/tasks/vigor-dev-team/` | Claude Code 实时读写 |
-| 项目归档(权威来源) | `.claude/teams/vigor-dev-team/` | git 追踪,可移交 |
-| 项目归档(权威来源) | `.claude/tasks/vigor-dev-team/` | git 追踪,可移交 |
+这样 Claude Code 写入时数据自动落在项目目录,随 git 追踪,不需要手动同步。
 
-**项目目录是权威来源** - 新环境拉取项目时,可以从 `.claude/` 下的快照重建团队。
+## 新环境部署
 
-### 同步命令
-
-阶段性工作完成后,运行以下命令将运行时状态同步到项目目录:
+克隆仓库到新机器后,执行以下命令重建符号链接:
 
 ```bash
-# 同步团队配置
-cp "$HOME/.claude/teams/vigor-dev-team/config.json" .claude/teams/vigor-dev-team/config.json
+cd <project-dir>
 
-# 同步任务状态
-cp "$HOME/.claude/tasks/vigor-dev-team/"*.json .claude/tasks/vigor-dev-team/
+# 确保系统目录存在
+mkdir -p ~/.claude/teams ~/.claude/tasks
 
-# 提交到 git
-git add .claude/ && git commit -m "chore: sync team runtime snapshot"
+# 重建符号链接(-f 覆盖已有链接)
+ln -sfn "$PWD/.claude/teams/vigor-dev-team" ~/.claude/teams/vigor-dev-team
+ln -sfn "$PWD/.claude/tasks/vigor-dev-team" ~/.claude/tasks/vigor-dev-team
+
+# 验证
+ls -la ~/.claude/teams/vigor-dev-team ~/.claude/tasks/vigor-dev-team
 ```
 
-### 使用场景
+## 验证链接状态
 
-- **项目交接**: 新开发者拉取项目后,能看到完整团队结构和任务历史
-- **追溯历史**: 查看每个团队成员的 prompt 和职责演变
-- **版本控制**: 通过 git log 追踪团队配置变化
-- **跨环境迁移**: 在新机器上通过快照快速重建团队
+```bash
+# 应看到 lrwxr-xr-x(链接) 而非 drwxr-xr-x(普通目录)
+ls -la ~/.claude/teams/vigor-dev-team
 
-### 注意事项
+# 通过链接读应等同于直接读项目目录
+diff <(cat ~/.claude/teams/vigor-dev-team/config.json) \
+     <(cat .claude/teams/vigor-dev-team/config.json)
+```
 
-- **实际读写发生在系统目录** - 不要直接修改 `.claude/teams/` 下的 JSON 期望影响运行时
-- **修改后需要手动同步** - 团队状态变更后,需要运行同步命令才能提交到 git
-- **建议同步时机**: 每完成一个里程碑任务后同步一次
+## 注意事项
 
+- **不要手动删除** `~/.claude/teams/vigor-dev-team` 和 `~/.claude/tasks/vigor-dev-team`,否则数据会被系统重新生成到 `~/.claude/` 下
+- **移动项目目录后需要重建链接**:符号链接是绝对路径
+- **git clone 后首次使用前必须重建链接**:git 不追踪 `~/.claude/` 下的链接
+- **不要把 .git 目录同步到系统链接**:只链接 `.claude/teams/<team>` 和 `.claude/tasks/<team>`,不要链接整个 `.claude/`
+
+## 使用场景
+
+- **项目交接**: 新开发者克隆后重建链接即可继续工作
+- **追溯历史**: `git log .claude/` 查看团队配置演变
+- **跨机器开发**: 团队状态和任务跟着项目走

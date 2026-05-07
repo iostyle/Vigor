@@ -1,0 +1,9 @@
+{
+  "id": "5",
+  "subject": "关闭当前团队成员",
+  "description": "向 architect、backend-dev、database-engineer、devops-engineer 发送 shutdown_request,等待全部退出",
+  "activeForm": "关闭团队成员",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}
