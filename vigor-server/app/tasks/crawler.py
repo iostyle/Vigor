@@ -158,6 +158,59 @@ def crawl_keyword_task(self, keyword_id: int):
 
 
 @celery_app.task(
+    name="app.tasks.crawler.crawl_video_comments",
+    queue="crawler",
+    bind=True,
+    max_retries=3,
+    default_retry_delay=30,
+)
+def crawl_video_comments(self, video_id: int):
+    """重新爬取指定视频的热门评论(由 updater 在评论增长 >20% 时触发)"""
+    db = SessionLocal()
+    try:
+        video = db.query(Video).filter(Video.id == video_id).first()
+        if not video:
+            return {"status": "error", "message": f"Video {video_id} not found"}
+
+        client = _get_douyin_client()
+        raw_comments = asyncio.run(
+            client.get_comments(video.douyin_id, limit=50, sort_by="like")
+        )
+
+        existing_ids = {
+            c.douyin_comment_id
+            for c in db.query(Comment).filter(Comment.video_id == video_id).all()
+        }
+
+        new_count = 0
+        for c in raw_comments:
+            cid = c.get("douyin_comment_id")
+            if cid in existing_ids:
+                continue
+            db.add(
+                Comment(
+                    video_id=video_id,
+                    douyin_comment_id=cid,
+                    author_name=c.get("author_name"),
+                    content=c.get("content", ""),
+                    like_count=c.get("like_count", 0),
+                    publish_time=_parse_time(c.get("publish_time")),
+                )
+            )
+            new_count += 1
+
+        db.commit()
+        generate_summary_task.delay(video_id)
+        return {"status": "success", "video_id": video_id, "new_comments": new_count}
+
+    except Exception as exc:
+        db.rollback()
+        raise self.retry(exc=exc)
+    finally:
+        db.close()
+
+
+@celery_app.task(
     name="app.tasks.crawler.crawl_all_keywords",
     queue="crawler",
 )
