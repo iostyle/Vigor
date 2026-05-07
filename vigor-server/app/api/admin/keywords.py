@@ -13,7 +13,7 @@ DbSession = Annotated[Session, Depends(get_db)]
 
 def _get_keyword_or_404(db: Session, keyword_id: int) -> Keyword:
     keyword = db.get(Keyword, keyword_id)
-    if keyword is None:
+    if keyword is None or keyword.status == "deleted":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Keyword not found")
     return keyword
 
@@ -34,8 +34,15 @@ def create_keyword(payload: KeywordCreate, db: DbSession) -> Keyword:
 
 
 @router.get("", response_model=list[KeywordResponse])
-def list_keywords(db: DbSession) -> list[Keyword]:
-    return db.query(Keyword).filter(Keyword.status != "deleted").order_by(Keyword.id.asc()).all()
+def list_keywords(db: DbSession, limit: int = 100, offset: int = 0) -> list[Keyword]:
+    return (
+        db.query(Keyword)
+        .filter(Keyword.status != "deleted")
+        .order_by(Keyword.id.asc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
 
 @router.put("/{keyword_id}", response_model=KeywordResponse)
