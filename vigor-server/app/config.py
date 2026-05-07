@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     DOUBAO_API_KEY: str
     SECRET_KEY: str
     API_KEY: str
+    DOUBAO_MOCK_MODE: bool = True
     ENVIRONMENT: str = "development"
 
 
