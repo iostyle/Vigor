@@ -67,7 +67,21 @@ Vigor 是一个基于抖音数据的领域分析平台,分为 Server(数据采�
 
 - **vigor-dev-team**: Vigor 数据采集子系统开发团队
   - 详情见 `.claude/agents/team-config.md`
-  - 配置文件位于 `~/.claude/teams/vigor-dev-team/config.json`
+  - **运行时配置**: `~/.claude/teams/vigor-dev-team/config.json`(系统管理)
+  - **项目归档快照**: `.claude/teams/vigor-dev-team/config.json`(手动同步)
+  - **任务快照**: `.claude/tasks/vigor-dev-team/*.json`
+
+### 团队配置同步
+
+Claude Code 的团队和任务运行时数据存储在系统目录 `~/.claude/`,项目目录保存**快照副本**便于追溯:
+
+```bash
+# 同步团队配置和任务状态
+cp ~/.claude/teams/vigor-dev-team/config.json .claude/teams/vigor-dev-team/config.json
+cp ~/.claude/tasks/vigor-dev-team/*.json .claude/tasks/vigor-dev-team/
+```
+
+详见 `.claude/teams/README.md`
 
 ## 文档结构
 
@@ -75,22 +89,29 @@ Vigor 是一个基于抖音数据的领域分析平台,分为 Server(数据采�
 Vigor/
 ├── .claude/
 │   ├── CLAUDE.md              # 项目 Claude 配置(本文件)
-│   └── agents/                # 团队角色定义
-│       ├── manager.md
-│       ├── architect.md
-│       ├── backend-dev.md
-│       ├── frontend-dev.md
-│       ├── database-engineer.md
-│       ├── devops-engineer.md
-│       ├── ui-designer.md
-│       ├── qa-engineer.md
-│       ├── domain-expert-template.md
-│       └── team-config.md     # 当前团队配置
+│   ├── agents/                # 团队角色定义
+│   │   ├── manager.md
+│   │   ├── architect.md
+│   │   ├── backend-dev.md
+│   │   ├── frontend-dev.md
+│   │   ├── database-engineer.md
+│   │   ├── devops-engineer.md
+│   │   ├── ui-designer.md
+│   │   ├── qa-engineer.md
+│   │   ├── domain-expert-template.md
+│   │   └── team-config.md     # 当前团队配置
+│   ├── teams/                 # 团队运行时配置快照
+│   │   ├── README.md          # 说明文档
+│   │   └── vigor-dev-team/
+│   │       └── config.json
+│   └── tasks/                 # 任务状态快照
+│       └── vigor-dev-team/
+│           └── *.json
 ├── docs/
 │   └── superpowers/
 │       ├── specs/             # 设计文档
 │       └── plans/             # 实现计划
-├── vigor-server/              # 服务端代码(待创建)
+├── vigor-server/              # 服务端代码
 └── vigor-client/              # 客户端代码(待创建)
 ```
 

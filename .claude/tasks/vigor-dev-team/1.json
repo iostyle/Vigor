@@ -1,0 +1,10 @@
+{
+  "id": "1",
+  "subject": "项目初始化和依赖配置",
+  "description": "创建 vigor-server 目录,初始化 Poetry 项目,添加核心依赖(FastAPI, Celery, SQLAlchemy等)和开发依赖(pytest, black, ruff),创建 .env.example 和 README.md 文件",
+  "activeForm": "初始化项目结构",
+  "owner": "架构师",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

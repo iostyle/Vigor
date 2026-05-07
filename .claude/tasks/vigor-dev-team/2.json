@@ -1,0 +1,9 @@
+{
+  "id": "2",
+  "subject": "数据库配置和连接",
+  "description": "实现配置管理(app/config.py)和数据库连接(app/database.py),使用 Pydantic Settings 加载环境变量,配置 SQLAlchemy 引擎和会话管理,编写测试验证配置和连接",
+  "activeForm": "配置数据库连接",
+  "status": "pending",
+  "blocks": [],
+  "blockedBy": []
+}

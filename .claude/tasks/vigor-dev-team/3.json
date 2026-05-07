@@ -1,0 +1,9 @@
+{
+  "id": "3",
+  "subject": "数据模型定义",
+  "description": "实现 SQLAlchemy 数据模型:Keyword(关键词)、Video(视频)、Comment(评论)、CommentSummary(评论摘要)、CrawlTask(爬取任务),定义表结构、字段、关系和索引,编写单元测试验证模型创建",
+  "activeForm": "定义数据模型",
+  "status": "pending",
+  "blocks": [],
+  "blockedBy": []
+}
