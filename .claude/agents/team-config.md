@@ -1,0 +1,112 @@
+---
+name: team-config
+description: Vigor 项目团队配置 - 记录活跃团队、成员分工和协作方式
+---
+
+# Vigor 项目团队配置
+
+## 团队信息
+
+- **团队名称**: vigor-dev-team
+- **团队目的**: Vigor 数据采集子系统开发
+- **团队配置文件**: `~/.claude/teams/vigor-dev-team/config.json`
+- **创建日期**: 2026-05-07
+
+## 当前活跃成员
+
+### 1. team-lead (管理者/团队负责人)
+- **Agent ID**: team-lead@vigor-dev-team
+- **角色**: manager
+- **职责**: 任务分配、进度跟踪、团队协调
+
+### 2. architect (架构师)
+- **Agent ID**: architect@vigor-dev-team
+- **角色**: 系统架构师
+- **当前任务**: Task #1 - 项目初始化和依赖配置
+- **颜色标识**: 🔵 blue
+
+### 3. backend-dev (后端开发工程师)
+- **Agent ID**: backend-dev@vigor-dev-team
+- **角色**: 后端开发
+- **当前任务**: Task #2 - 数据库配置和连接
+- **颜色标识**: 🟢 green
+
+### 4. database-engineer (数据库工程师)
+- **Agent ID**: database-engineer@vigor-dev-team
+- **角色**: 数据库设计
+- **当前任务**: Task #3 - 数据模型定义
+- **颜色标识**: 🟡 yellow
+
+### 5. devops-engineer (DevOps 工程师)
+- **Agent ID**: devops-engineer@vigor-dev-team
+- **角色**: 部署与运维
+- **当前任务**: Task #4 - 数据库迁移配置
+- **颜色标识**: 🟣 purple
+
+## 团队协作方式
+
+### 沟通机制
+- 使用 SendMessage 工具进行成员间沟通
+- 所有成员可以实时沟通讨论
+- 团队配置位于 `~/.claude/teams/vigor-dev-team/config.json`
+
+### 任务分配
+- 通过 TaskList 查看所有任务
+- 使用 TaskUpdate 分配任务给成员(设置 owner)
+- 任务依赖关系通过 addBlockedBy/addBlocks 管理
+
+### 工作流程
+1. 团队领导创建任务并分配给成员
+2. 成员按照任务优先级和依赖顺序执行
+3. 成员完成任务后更新状态为 completed
+4. 成员遇到问题时通过 SendMessage 求助
+5. 团队领导监控进度,协调资源
+
+## 如何管理团队
+
+### 查看团队状态
+```bash
+# 查看团队配置
+cat ~/.claude/teams/vigor-dev-team/config.json
+
+# 查看当前任务
+# 使用 TaskList 工具
+```
+
+### 添加新成员
+使用 Agent 工具派发新成员:
+```
+Agent(
+  subagent_type="general-purpose",
+  team_name="vigor-dev-team",
+  name="<成员名>",
+  description="<角色描述>",
+  prompt="<任务指令>"
+)
+```
+
+### 移除成员
+使用 SendMessage 发送 shutdown_request:
+```
+SendMessage({
+  to: "<成员名>",
+  message: {type: "shutdown_request"}
+})
+```
+
+### 解散团队
+所有成员完成工作后,使用 TeamDelete 删除团队。
+
+## 角色定义文件
+
+所有角色的详细定义位于 `.claude/agents/` 目录:
+
+- `manager.md` - 项目管理者
+- `architect.md` - 系统架构师
+- `backend-dev.md` - 后端开发工程师
+- `database-engineer.md` - 数据库工程师
+- `devops-engineer.md` - DevOps 工程师
+- `ui-designer.md` - UI 设计师(Apple 风格)
+- `frontend-dev.md` - 前端开发工程师(Flutter)
+- `qa-engineer.md` - 软件测试工程师
+- `domain-expert-template.md` - 领域专家模板
