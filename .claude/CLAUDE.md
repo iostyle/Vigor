@@ -67,18 +67,24 @@ Vigor 是一个基于抖音数据的领域分析平台,分为 Server(数据采�
 
 - **vigor-dev-team**: Vigor 数据采集子系统开发团队
   - 详情见 `.claude/agents/team-config.md`
-  - **运行时配置**: `~/.claude/teams/vigor-dev-team/config.json`(系统管理)
-  - **项目归档快照**: `.claude/teams/vigor-dev-team/config.json`(手动同步)
-  - **任务快照**: `.claude/tasks/vigor-dev-team/*.json`
+  - **项目权威配置**: `.claude/teams/vigor-dev-team/config.json`(git 追踪)
+  - **项目任务归档**: `.claude/tasks/vigor-dev-team/*.json`(git 追踪)
+  - **运行时位置**: `~/.claude/teams/` 和 `~/.claude/tasks/`(系统管理,无法迁移)
 
 ### 团队配置同步
 
-Claude Code 的团队和任务运行时数据存储在系统目录 `~/.claude/`,项目目录保存**快照副本**便于追溯:
+Claude Code 的团队和任务运行时数据由系统固定存放在 `~/.claude/` 下,**无法通过配置改到项目目录**。因此本项目采用"运行时 + 项目归档"模式:
+
+- 实际读写发生在 `~/.claude/` 下(Claude Code 自动管理)
+- **项目目录 `.claude/teams/` 和 `.claude/tasks/` 作为权威归档**,通过 git 追踪
+
+阶段性任务完成后,运行同步命令归档:
 
 ```bash
-# 同步团队配置和任务状态
-cp ~/.claude/teams/vigor-dev-team/config.json .claude/teams/vigor-dev-team/config.json
-cp ~/.claude/tasks/vigor-dev-team/*.json .claude/tasks/vigor-dev-team/
+# 同步团队配置和任务状态到项目目录
+cp "$HOME/.claude/teams/vigor-dev-team/config.json" .claude/teams/vigor-dev-team/config.json
+cp "$HOME/.claude/tasks/vigor-dev-team/"*.json .claude/tasks/vigor-dev-team/
+git add .claude/ && git commit -m "chore: sync team runtime snapshot"
 ```
 
 详见 `.claude/teams/README.md`

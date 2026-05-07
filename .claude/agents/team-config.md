@@ -9,7 +9,8 @@ description: Vigor 项目团队配置 - 记录活跃团队、成员分工和协�
 
 - **团队名称**: vigor-dev-team
 - **团队目的**: Vigor 数据采集子系统开发
-- **团队配置文件**: `~/.claude/teams/vigor-dev-team/config.json`
+- **团队配置文件**: `.claude/teams/vigor-dev-team/config.json`
+- **任务状态目录**: `.claude/tasks/vigor-dev-team/`
 - **创建日期**: 2026-05-07
 
 ## 当前活跃成员
@@ -48,7 +49,7 @@ description: Vigor 项目团队配置 - 记录活跃团队、成员分工和协�
 ### 沟通机制
 - 使用 SendMessage 工具进行成员间沟通
 - 所有成员可以实时沟通讨论
-- 团队配置位于 `~/.claude/teams/vigor-dev-team/config.json`
+- 团队配置位于 `.claude/teams/vigor-dev-team/config.json`
 
 ### 任务分配
 - 通过 TaskList 查看所有任务
@@ -66,10 +67,13 @@ description: Vigor 项目团队配置 - 记录活跃团队、成员分工和协�
 
 ### 查看团队状态
 ```bash
-# 查看团队配置
-cat ~/.claude/teams/vigor-dev-team/config.json
+# 查看团队配置(项目归档)
+cat .claude/teams/vigor-dev-team/config.json
 
-# 查看当前任务
+# 查看任务状态(项目归档)
+ls .claude/tasks/vigor-dev-team/
+
+# 查看当前任务(实时)
 # 使用 TaskList 工具
 ```
 
