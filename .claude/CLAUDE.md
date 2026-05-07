@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-Vigor 是一个基于抖音数据的领域分析平台,分为 Server(数据采集、分析引擎)和 Client(Flutter 跨平台展示)两部分。
+Vigor 是一个基于抖音数据的领域分析平台,分为 Server(数据采集、分析引擎)和 Client(Vue 3 Web 应用)两部分。
 
 - **项目仓库**: git@github.com:iostyle/Vigor.git
 - **项目目录**: `/Users/iostyle/WorkSpace/AIWorkSpace/Vigor`
@@ -29,9 +29,10 @@ Vigor 是一个基于抖音数据的领域分析平台,分为 Server(数据采�
 
 ### 4. UI 设计
 - UI 借鉴 **Apple 风格**:简洁、优雅、注重留白
-- 使用 Cupertino 风格组件(Flutter)
-- 支持深色模式
+- 使用 Naive UI 组件库(Vue 3)
+- 支持浅色/深色双主题
 - 流畅的动画和过渡效果
+- 响应式设计,兼容桌面端和移动端
 
 ## 团队角色配置
 
@@ -44,7 +45,7 @@ Vigor 是一个基于抖音数据的领域分析平台,分为 Server(数据采�
 | `manager.md` | 管理者 | 任务分配、进度跟踪、团队协调 |
 | `architect.md` | 架构师 | 技术选型、架构设计、技术决策 |
 | `backend-dev.md` | 后端开发工程师 | API 开发、业务逻辑、数据库操作 |
-| `frontend-dev.md` | 前端开发工程师 | Flutter 开发、UI 实现、接口对接 |
+| `frontend-dev.md` | 前端开发工程师 | Vue 3 开发、UI 实现、接口对接 |
 | `database-engineer.md` | 数据库工程师 | 数据库设计、数据模型、查询优化 |
 | `devops-engineer.md` | DevOps 工程师 | 部署、容器化、CI/CD、监控 |
 | `ui-designer.md` | UI 设计师 | 界面设计、交互设计(Apple 风格) |
