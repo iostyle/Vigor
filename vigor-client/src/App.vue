@@ -1,23 +1,21 @@
 <template>
-  <div id="app">
-    <router-view />
-  </div>
+  <router-view />
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 
-const themeStore = useThemeStore()
-
-onMounted(() => {
-  themeStore.init?.()
-})
+// 初始化主题
+useThemeStore()
 </script>
 
 <style>
+html,
+body,
 #app {
   width: 100%;
-  min-height: 100vh;
+  height: 100%;
+  margin: 0;
+  padding: 0;
 }
 </style>

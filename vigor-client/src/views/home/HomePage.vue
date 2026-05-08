@@ -1,46 +1,174 @@
 <template>
   <div class="home-page">
-    <div class="content">
-      <h1>Vigor 数据分析平台</h1>
-      <p>正在开发中...</p>
+    <TopNavBar
+      :keywords="keywordStore.keywords"
+      :active-keyword-id="keywordStore.activeKeywordId"
+      @change-keyword="handleKeywordChange"
+    />
+
+    <div class="main-content" :class="{ 'mobile-detail': isMobile && videoStore.selectedVideo }">
+      <!-- 视频列表 -->
+      <div class="list-panel">
+        <VideoList
+          :videos="videoStore.videos"
+          :loading="videoStore.loading"
+          :selected-id="videoStore.selectedVideo?.id ?? null"
+          @select="handleVideoSelect"
+          @change-sort="handleSortChange"
+          @change-time-window="handleTimeWindowChange"
+        />
+      </div>
+
+      <!-- 数据看板 -->
+      <div class="dashboard-panel">
+        <div v-if="isMobile && videoStore.selectedVideo" class="mobile-back" @click="handleBack">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+          </svg>
+          <span>返回列表</span>
+        </div>
+        <DataDashboard :video="videoStore.selectedVideo" />
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref, onUnmounted, watch } from 'vue'
 import { useKeywordStore } from '@/stores/keyword'
 import { useVideoStore } from '@/stores/video'
+import TopNavBar from '@/components/common/TopNavBar.vue'
+import VideoList from '@/components/video/VideoList.vue'
+import DataDashboard from '@/components/dashboard/DataDashboard.vue'
 
 const keywordStore = useKeywordStore()
 const videoStore = useVideoStore()
 
-onMounted(() => {
-  keywordStore.fetchKeywords()
-  videoStore.fetchVideos()
+const isMobile = ref(false)
+
+function checkMobile() {
+  isMobile.value = window.innerWidth < 768
+}
+
+function handleKeywordChange(id: number) {
+  keywordStore.setActiveKeyword(id)
+  videoStore.setKeyword(id)
+  videoStore.selectedVideo = null
+}
+
+function handleVideoSelect(id: number) {
+  videoStore.selectVideo(id)
+}
+
+function handleSortChange(sort: 'heat_score' | 'publish_time') {
+  videoStore.setSortBy(sort)
+}
+
+function handleTimeWindowChange(window: '1d' | '3d' | '7d' | '15d' | '30d' | null) {
+  videoStore.setTimeWindow(window)
+}
+
+function handleBack() {
+  videoStore.selectedVideo = null
+}
+
+watch(
+  () => keywordStore.activeKeywordId,
+  (newId) => {
+    if (newId !== null) {
+      videoStore.setKeyword(newId)
+    }
+  }
+)
+
+onMounted(async () => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+  await keywordStore.fetchKeywords()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
 })
 </script>
 
 <style scoped>
 .home-page {
-  width: 100%;
-  min-height: 100vh;
   display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: var(--bg-primary);
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.list-panel {
+  flex: 0 0 40%;
+  max-width: 500px;
+  min-width: 320px;
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dashboard-panel {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-back {
+  display: none;
   align-items: center;
-  justify-content: center;
+  gap: 4px;
+  padding: var(--spacing-md);
+  color: var(--primary-color);
+  font-size: 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
 }
 
-.content {
-  text-align: center;
-}
+@media (max-width: 768px) {
+  .main-content {
+    position: relative;
+  }
 
-h1 {
-  font-size: 2rem;
-  font-weight: 600;
-  margin-bottom: 1rem;
-}
+  .list-panel {
+    flex: 1;
+    max-width: none;
+    min-width: 0;
+    width: 100%;
+    border-right: none;
+  }
 
-p {
-  color: var(--text-secondary);
+  .dashboard-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--bg-primary);
+    transform: translateX(100%);
+    transition: transform var(--transition-base);
+  }
+
+  .main-content.mobile-detail .list-panel {
+    display: none;
+  }
+
+  .main-content.mobile-detail .dashboard-panel {
+    transform: translateX(0);
+  }
+
+  .mobile-back {
+    display: flex;
+  }
 }
 </style>

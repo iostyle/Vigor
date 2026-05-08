@@ -1,0 +1,547 @@
+<template>
+  <div class="dashboard">
+    <div v-if="!video" class="empty-state">
+      <div class="empty-icon">
+        <svg viewBox="0 0 24 24" width="64" height="64" fill="currentColor">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
+        </svg>
+      </div>
+      <h3>请选择一个视频查看详细数据</h3>
+      <p>点击左侧视频卡片,这里将展示完整的数据分析</p>
+    </div>
+
+    <div v-else class="dashboard-content">
+      <!-- 视频详情 -->
+      <section class="section video-detail">
+        <div class="video-cover">
+          <img v-if="video.cover_url" :src="video.cover_url" :alt="video.title" />
+          <div v-else class="cover-placeholder">
+            <span>{{ video.title.slice(0, 2) }}</span>
+          </div>
+        </div>
+        <div class="video-info">
+          <h1 class="video-title">{{ video.title }}</h1>
+          <div class="video-meta">
+            <span class="author">{{ video.author_name || '匿名作者' }}</span>
+            <span class="divider">·</span>
+            <span class="publish-time">{{ formatDate(video.publish_time) }}</span>
+          </div>
+          <div class="metrics">
+            <div class="metric">
+              <div class="metric-value">{{ formatNumber(video.like_count) }}</div>
+              <div class="metric-label">点赞</div>
+            </div>
+            <div class="metric">
+              <div class="metric-value">{{ formatNumber(video.comment_count) }}</div>
+              <div class="metric-label">评论</div>
+            </div>
+            <div class="metric">
+              <div class="metric-value">{{ formatNumber(video.share_count) }}</div>
+              <div class="metric-label">分享</div>
+            </div>
+            <div class="metric heat-metric">
+              <div class="metric-value" :class="`heat-${heatInfo.color}`">
+                {{ heatInfo.text }}
+              </div>
+              <div class="metric-label">热度</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 互动数据图表 -->
+      <section class="section">
+        <h2 class="section-title">互动数据趋势</h2>
+        <div class="chart-placeholder">
+          <svg viewBox="0 0 400 200" class="mock-chart">
+            <polyline
+              points="0,150 40,140 80,120 120,130 160,100 200,90 240,80 280,60 320,50 360,40 400,30"
+              fill="none"
+              stroke="var(--primary-color)"
+              stroke-width="2"
+            />
+            <polyline
+              points="0,180 40,170 80,160 120,155 160,140 200,135 240,120 280,110 320,95 360,85 400,75"
+              fill="none"
+              stroke="var(--success-color)"
+              stroke-width="2"
+              stroke-dasharray="4,4"
+            />
+          </svg>
+          <div class="chart-legend">
+            <span class="legend-item">
+              <span class="legend-dot" style="background: var(--primary-color)"></span>
+              点赞
+            </span>
+            <span class="legend-item">
+              <span class="legend-dot" style="background: var(--success-color)"></span>
+              评论
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 评论摘要 -->
+      <section class="section">
+        <h2 class="section-title">评论摘要</h2>
+        <div v-if="video.comment_summary" class="comment-summary">
+          <p class="summary-text">{{ video.comment_summary.summary }}</p>
+          <div class="summary-meta">
+            <div class="keywords">
+              <span
+                v-for="keyword in video.comment_summary.top_keywords"
+                :key="keyword"
+                class="keyword-tag"
+              >
+                {{ keyword }}
+              </span>
+            </div>
+            <div class="sentiment" :class="`sentiment-${sentimentInfo.color}`">
+              情感倾向: {{ sentimentInfo.text }}
+            </div>
+          </div>
+        </div>
+        <div v-else class="no-data">
+          <p>暂无评论摘要</p>
+        </div>
+      </section>
+
+      <!-- AI 领域专家分析 -->
+      <section class="section">
+        <h2 class="section-title">
+          <span>AI 领域专家分析</span>
+          <span class="coming-soon">敬请期待</span>
+        </h2>
+        <div class="ai-analysis">
+          <div class="analysis-card">
+            <h4>🎯 行业洞察</h4>
+            <p class="placeholder">AI 将从专业角度解读视频内容的行业意义</p>
+          </div>
+          <div class="analysis-card">
+            <h4>📊 数据解读</h4>
+            <p class="placeholder">分析热度背后的原因和传播逻辑</p>
+          </div>
+          <div class="analysis-card">
+            <h4>🚀 趋势预测</h4>
+            <p class="placeholder">基于当前数据预测话题发展方向</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 趋势对比 -->
+      <section class="section">
+        <h2 class="section-title">趋势对比</h2>
+        <div class="trend-comparison">
+          <div class="comparison-item">
+            <span class="label">该视频热度</span>
+            <div class="bar">
+              <div class="bar-fill primary" :style="{ width: '75%' }"></div>
+            </div>
+            <span class="value">{{ heatInfo.text }}</span>
+          </div>
+          <div class="comparison-item">
+            <span class="label">同领域平均</span>
+            <div class="bar">
+              <div class="bar-fill secondary" :style="{ width: '50%' }"></div>
+            </div>
+            <span class="value">50.0</span>
+          </div>
+          <div class="ranking">
+            该视频在同领域中排名 <strong>Top 15%</strong>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+import type { Video } from '@/types/video'
+import { formatNumber, formatDate, formatHeatScore, formatSentiment } from '@/utils/format'
+
+const props = defineProps<{
+  video: Video | null
+}>()
+
+const heatInfo = computed(() => formatHeatScore(props.video?.heat_score ?? null))
+const sentimentInfo = computed(() =>
+  formatSentiment(props.video?.comment_summary?.sentiment || 'neutral')
+)
+</script>
+
+<style scoped>
+.dashboard {
+  height: 100%;
+  overflow-y: auto;
+  background-color: var(--bg-secondary);
+}
+
+.empty-state {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  color: var(--text-secondary);
+  text-align: center;
+  padding: var(--spacing-xl);
+}
+
+.empty-icon {
+  color: var(--text-tertiary);
+  opacity: 0.3;
+}
+
+.empty-state h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.empty-state p {
+  font-size: 14px;
+  color: var(--text-tertiary);
+}
+
+.dashboard-content {
+  padding: var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+}
+
+.section {
+  background-color: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  border: 1px solid var(--border-color);
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-lg);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.coming-soon {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+  padding: 2px 8px;
+  background-color: var(--bg-secondary);
+  border-radius: 10px;
+}
+
+.video-detail {
+  display: flex;
+  gap: var(--spacing-xl);
+}
+
+.video-cover {
+  flex: 0 0 280px;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background-color: var(--bg-tertiary);
+}
+
+.video-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--bg-tertiary), var(--border-color));
+  color: var(--text-tertiary);
+  font-size: 32px;
+  font-weight: 600;
+}
+
+.video-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.video-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  margin-bottom: var(--spacing-sm);
+}
+
+.video-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-lg);
+}
+
+.divider {
+  color: var(--text-tertiary);
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-md);
+  margin-top: auto;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metric-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.metric-label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.heat-metric .heat-red {
+  color: var(--error-color);
+}
+
+.heat-metric .heat-orange {
+  color: var(--warning-color);
+}
+
+.heat-metric .heat-gray {
+  color: var(--text-secondary);
+}
+
+.chart-placeholder {
+  width: 100%;
+}
+
+.mock-chart {
+  width: 100%;
+  height: 200px;
+}
+
+.chart-legend {
+  display: flex;
+  gap: var(--spacing-lg);
+  justify-content: center;
+  margin-top: var(--spacing-md);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.comment-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.summary-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.summary-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+}
+
+.keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.keyword-tag {
+  padding: 4px 10px;
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.sentiment {
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.sentiment-green {
+  background-color: rgba(52, 199, 89, 0.1);
+  color: var(--success-color);
+}
+
+.sentiment-red {
+  background-color: rgba(255, 59, 48, 0.1);
+  color: var(--error-color);
+}
+
+.sentiment-gray {
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
+.no-data {
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.ai-analysis {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-md);
+}
+
+.analysis-card {
+  padding: var(--spacing-lg);
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-color);
+}
+
+.analysis-card h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.analysis-card .placeholder {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  line-height: 1.5;
+}
+
+.trend-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.comparison-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.comparison-item .label {
+  flex: 0 0 100px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.bar {
+  flex: 1;
+  height: 8px;
+  background-color: var(--bg-secondary);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width var(--transition-base);
+}
+
+.bar-fill.primary {
+  background-color: var(--primary-color);
+}
+
+.bar-fill.secondary {
+  background-color: var(--text-tertiary);
+}
+
+.comparison-item .value {
+  flex: 0 0 60px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ranking {
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.ranking strong {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .dashboard-content {
+    padding: var(--spacing-md);
+    gap: var(--spacing-md);
+  }
+
+  .section {
+    padding: var(--spacing-md);
+  }
+
+  .video-detail {
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+
+  .video-cover {
+    flex: 0 0 auto;
+  }
+
+  .video-title {
+    font-size: 16px;
+  }
+
+  .metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .ai-analysis {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
