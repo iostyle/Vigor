@@ -7,6 +7,11 @@ celery_app = Celery(
     "vigor",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
+    include=[
+        "app.tasks.crawler",
+        "app.tasks.processor",
+        "app.tasks.updater",
+    ],
 )
 
 celery_app.conf.update(
