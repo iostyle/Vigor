@@ -16,7 +16,7 @@ export const useVideoStore = defineStore('video', () => {
     loading.value = true
     try {
       const finalParams = {
-        keyword_id: currentKeywordId.value || undefined,
+        keyword_id: currentKeywordId.value && currentKeywordId.value > 0 ? currentKeywordId.value : undefined,
         time_window: timeWindow.value || undefined,
         sort: sortBy.value,
         limit: 20,
@@ -27,7 +27,9 @@ export const useVideoStore = defineStore('video', () => {
       videos.value = res.data
       total.value = res.total
     } catch (error) {
-      console.error('Failed to fetch videos:', error)
+      console.warn('无法连接后端,视频列表为空:', error)
+      videos.value = []
+      total.value = 0
     } finally {
       loading.value = false
     }
