@@ -95,6 +95,8 @@ class DouyinClient:
         time_window: str = "30d",
         limit: int = 100,
         min_heat: int = 1000,
+        include_comments: bool = False,
+        comments_per_video: int = 20,
     ) -> list[dict]:
         if self.mock_mode:
             window_days = self.TIME_WINDOWS.get(time_window, 30)
@@ -116,12 +118,24 @@ class DouyinClient:
             )
             return filtered[:limit]
 
-        return await self._run_media_crawler_search(keyword, limit)
+        return await self._run_media_crawler_search(
+            keyword,
+            limit,
+            include_comments=include_comments,
+            comments_per_video=comments_per_video,
+        )
 
     async def _run_media_crawler_search(
-        self, keyword: str, limit: int
+        self,
+        keyword: str,
+        limit: int,
+        include_comments: bool = False,
+        comments_per_video: int = 20,
     ) -> list[dict]:
-        """调用 MediaCrawler 子进程搜索抖音视频,读取 JSONL 结果"""
+        """调用 MediaCrawler 子进程搜索抖音视频,读取 JSONL 结果
+
+        如果 include_comments=True,同时读取评论 jsonl 并按 aweme_id 聚合到视频。
+        """
         mc_path = Path(self.media_crawler_path)
         if not mc_path.exists():
             raise RuntimeError(
@@ -131,11 +145,11 @@ class DouyinClient:
         # MediaCrawler 每次运行按日期追加到同一个 jsonl,
         # 我们按时间戳取增量
         date_str = datetime.now().strftime("%Y-%m-%d")
-        output_file = mc_path / "data" / "douyin" / "jsonl" / f"search_contents_{date_str}.jsonl"
-        existing_lines = 0
-        if output_file.exists():
-            with open(output_file, "r", encoding="utf-8") as f:
-                existing_lines = sum(1 for _ in f)
+        contents_file = mc_path / "data" / "douyin" / "jsonl" / f"search_contents_{date_str}.jsonl"
+        comments_file = mc_path / "data" / "douyin" / "jsonl" / f"search_comments_{date_str}.jsonl"
+
+        existing_contents = self._count_lines(contents_file)
+        existing_comments = self._count_lines(comments_file)
 
         env = os.environ.copy()
         if self.http_proxy:
@@ -152,8 +166,9 @@ class DouyinClient:
             "--keywords", keyword,
             "--type", "search",
             "--save_data_option", "jsonl",
-            "--get_comment", "false",
+            "--get_comment", "true" if include_comments else "false",
             "--get_sub_comment", "false",
+            "--max_comments_count_singlenotes", str(comments_per_video),
         ]
 
         loop = asyncio.get_event_loop()
@@ -167,7 +182,7 @@ class DouyinClient:
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            stdout, stderr = proc.communicate(timeout=600)
+            stdout, stderr = proc.communicate(timeout=1800)
             return proc.returncode, stdout, stderr
 
         returncode, stdout, stderr = await loop.run_in_executor(None, _run_subprocess)
@@ -176,27 +191,56 @@ class DouyinClient:
                 f"MediaCrawler 子进程失败 (code={returncode}):\nstdout:\n{stdout[-2000:]}\nstderr:\n{stderr[-2000:]}"
             )
 
-        if not output_file.exists():
-            return []
+        # 读取新增的视频
+        videos: list[dict] = []
+        if contents_file.exists():
+            with open(contents_file, "r", encoding="utf-8") as f:
+                for idx, line in enumerate(f):
+                    if idx < existing_contents:
+                        continue
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        raw = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    videos.append(self._normalize_dy_item(raw))
+                    if len(videos) >= effective_limit:
+                        break
 
-        # 读取新增的行
-        results: list[dict] = []
-        with open(output_file, "r", encoding="utf-8") as f:
-            for idx, line in enumerate(f):
-                if idx < existing_lines:
-                    continue
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    raw = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                results.append(self._normalize_dy_item(raw))
-                if len(results) >= effective_limit:
-                    break
+        videos = videos[:limit]
 
-        return results[:limit]
+        # 如果需要评论,按 aweme_id 聚合新增的评论
+        if include_comments and comments_file.exists():
+            comments_by_video: dict[str, list[dict]] = {}
+            with open(comments_file, "r", encoding="utf-8") as f:
+                for idx, line in enumerate(f):
+                    if idx < existing_comments:
+                        continue
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        raw = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    normalized = self._normalize_dy_comment(raw)
+                    aweme_id = str(raw.get("aweme_id") or "")
+                    if aweme_id:
+                        comments_by_video.setdefault(aweme_id, []).append(normalized)
+
+            for v in videos:
+                v["comments"] = comments_by_video.get(v["douyin_id"], [])[:comments_per_video]
+
+        return videos
+
+    @staticmethod
+    def _count_lines(path: Path) -> int:
+        if not path.exists():
+            return 0
+        with open(path, "r", encoding="utf-8") as f:
+            return sum(1 for _ in f)
 
     @staticmethod
     def _normalize_dy_item(raw: dict) -> dict:
@@ -246,6 +290,38 @@ class DouyinClient:
             "publish_time": publish_time,
         }
 
+    @staticmethod
+    def _normalize_dy_comment(raw: dict) -> dict:
+        """把 MediaCrawler 的评论条目转成 DouyinClient 统一字段"""
+        comment_id = str(raw.get("comment_id") or raw.get("id") or "")
+        content = raw.get("content") or raw.get("comment_text") or ""
+        nickname = raw.get("nickname") or raw.get("user_nickname") or raw.get("author_name") or ""
+        # like_count 在 MC 里是 string,需要转 int
+        like_raw = raw.get("like_count") or raw.get("digg_count") or "0"
+        try:
+            like = int(str(like_raw).replace(",", ""))
+        except (ValueError, TypeError):
+            like = 0
+
+        create_time = raw.get("create_time") or raw.get("publish_time")
+        if isinstance(create_time, (int, float)):
+            ts = int(create_time)
+            if ts > 10_000_000_000:
+                ts //= 1000
+            publish_time = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+        elif isinstance(create_time, str) and create_time:
+            publish_time = create_time
+        else:
+            publish_time = datetime.now(timezone.utc).isoformat()
+
+        return {
+            "douyin_comment_id": comment_id,
+            "author_name": nickname,
+            "content": content,
+            "like_count": like,
+            "publish_time": publish_time,
+        }
+
     async def get_video_detail(self, video_id: str) -> dict:
         if self.mock_mode:
             rng = self._seeded_rng("detail", video_id)
@@ -283,7 +359,85 @@ class DouyinClient:
                 pool.sort(key=lambda c: c["publish_time"], reverse=True)
             return pool[:limit]
 
-        raise NotImplementedError("真实抖音 API 调用需要授权后接入")
+        return await self._run_media_crawler_comments(video_id, limit, sort_by)
+
+    async def _run_media_crawler_comments(
+        self,
+        video_id: str,
+        limit: int,
+        sort_by: str = "like",
+    ) -> list[dict]:
+        """调用 MediaCrawler detail 模式爬指定视频的评论"""
+        mc_path = Path(self.media_crawler_path)
+        if not mc_path.exists():
+            raise RuntimeError(
+                f"MediaCrawler 未安装在 {mc_path},请设置 MEDIA_CRAWLER_PATH 环境变量"
+            )
+
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        comments_file = mc_path / "data" / "douyin" / "jsonl" / f"detail_comments_{date_str}.jsonl"
+        existing_comments = self._count_lines(comments_file)
+
+        env = os.environ.copy()
+        if self.http_proxy:
+            env["HTTP_PROXY"] = self.http_proxy
+            env["HTTPS_PROXY"] = self.http_proxy
+
+        cmd = [
+            sys.executable,
+            "main.py",
+            "--platform", "dy",
+            "--type", "detail",
+            "--specified_id", str(video_id),
+            "--save_data_option", "jsonl",
+            "--get_comment", "true",
+            "--get_sub_comment", "false",
+            "--max_comments_count_singlenotes", str(limit),
+        ]
+
+        loop = asyncio.get_event_loop()
+
+        def _run_subprocess() -> tuple[int, str, str]:
+            proc = subprocess.Popen(
+                cmd,
+                cwd=str(mc_path),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            stdout, stderr = proc.communicate(timeout=600)
+            return proc.returncode, stdout, stderr
+
+        returncode, stdout, stderr = await loop.run_in_executor(None, _run_subprocess)
+        if returncode != 0:
+            raise RuntimeError(
+                f"MediaCrawler 评论子进程失败 (code={returncode}):\nstderr:\n{stderr[-2000:]}"
+            )
+
+        results: list[dict] = []
+        if comments_file.exists():
+            with open(comments_file, "r", encoding="utf-8") as f:
+                for idx, line in enumerate(f):
+                    if idx < existing_comments:
+                        continue
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        raw = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if str(raw.get("aweme_id") or "") != str(video_id):
+                        continue
+                    results.append(self._normalize_dy_comment(raw))
+
+        if sort_by == "like":
+            results.sort(key=lambda c: c["like_count"], reverse=True)
+        elif sort_by == "time":
+            results.sort(key=lambda c: c["publish_time"], reverse=True)
+
+        return results[:limit]
 
     async def _request(self, method: str, path: str, **kwargs) -> dict:
         async with self._semaphore:
