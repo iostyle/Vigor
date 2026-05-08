@@ -2,20 +2,11 @@ import asyncio
 from datetime import datetime, timedelta
 
 from app.celery_app import celery_app
-from app.config import settings
 from app.database import SessionLocal
+from app.models.keyword import Keyword
 from app.models.video import Video
-from app.services.douyin_client import DouyinClient
 from app.services.heat_calculator import calculate_heat_score
-
-
-def _get_douyin_client() -> DouyinClient:
-    return DouyinClient(
-        api_key=settings.DOUYIN_API_KEY,
-        mock_mode=settings.DOUYIN_MOCK_MODE,
-        base_url=settings.DOUYIN_API_BASE_URL,
-        max_concurrency=settings.DOUYIN_MAX_CONCURRENCY,
-    )
+from app.services.platform_client import get_client
 
 
 def _is_due_for_update(video: Video, now: datetime) -> bool:
@@ -43,14 +34,27 @@ def update_videos_task(self):
     db = SessionLocal()
     try:
         now = datetime.now()
-        client = _get_douyin_client()
         updated_count = 0
         comment_crawl_count = 0
 
         videos = db.query(Video).all()
         due_videos = [video for video in videos if _is_due_for_update(video, now)]
 
+        # Why: 同一次 tick 内缓存按 platform 的 client,避免每个视频都重建
+        client_cache: dict[str, object] = {}
+
         for video in due_videos:
+            kw = (
+                db.query(Keyword).filter(Keyword.id == video.keyword_id).first()
+                if video.keyword_id
+                else None
+            )
+            platform = (getattr(kw, "platform", None) or "douyin").lower()
+            client = client_cache.get(platform)
+            if client is None:
+                client = get_client(platform)
+                client_cache[platform] = client
+
             old_comment_count = video.comment_count or 0
             detail = asyncio.run(client.get_video_detail(video.douyin_id))
 

@@ -2,24 +2,19 @@ import asyncio
 from datetime import datetime
 
 from app.celery_app import celery_app
-from app.config import settings
 from app.database import SessionLocal
 from app.models.comment import Comment
 from app.models.keyword import Keyword
 from app.models.task import CrawlTask
 from app.models.video import Video
-from app.services.douyin_client import DouyinClient
 from app.services.heat_calculator import calculate_heat_score
+from app.services.platform_client import get_client
 from app.tasks.processor import generate_summary_task
 
 
-def _get_douyin_client() -> DouyinClient:
-    return DouyinClient(
-        api_key=settings.DOUYIN_API_KEY,
-        mock_mode=settings.DOUYIN_MOCK_MODE,
-        base_url=settings.DOUYIN_API_BASE_URL,
-        max_concurrency=settings.DOUYIN_MAX_CONCURRENCY,
-    )
+def _get_client_for_keyword(keyword: Keyword):
+    """按 keyword.platform 选择具体平台 client,默认 'douyin' 保持向后兼容"""
+    return get_client(getattr(keyword, "platform", None) or "douyin")
 
 
 def _parse_time(value) -> datetime | None:
@@ -58,7 +53,7 @@ def crawl_keyword_task(self, keyword_id: int):
         if keyword.status != "active":
             return {"status": "skipped", "reason": "keyword disabled"}
 
-        client = _get_douyin_client()
+        client = _get_client_for_keyword(keyword)
 
         raw_videos = asyncio.run(
             client.search_videos(
@@ -172,7 +167,16 @@ def crawl_video_comments(self, video_id: int):
         if not video:
             return {"status": "error", "message": f"Video {video_id} not found"}
 
-        client = _get_douyin_client()
+        # Why: 通过 video.keyword 路由到对应平台 client,而不是硬编码 douyin
+        keyword = (
+            db.query(Keyword).filter(Keyword.id == video.keyword_id).first()
+            if video.keyword_id
+            else None
+        )
+        if keyword is not None:
+            client = _get_client_for_keyword(keyword)
+        else:
+            client = get_client("douyin")
         raw_comments = asyncio.run(
             client.get_comments(video.douyin_id, limit=50, sort_by="like")
         )
