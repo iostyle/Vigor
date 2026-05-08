@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import settings
 from app.database import Base
-from app.models import Keyword, Video
+from app.models import Category, Keyword, Video
 
 
 @pytest.fixture()
@@ -49,8 +49,12 @@ def client(monkeypatch):
 def test_list_keyword_stats_returns_video_counts_and_average_heat(client):
     test_client, session_factory = client
     session = session_factory()
-    keyword_food = Keyword(keyword="美食", status="active")
-    keyword_tech = Keyword(keyword="科技", status="active")
+    cat = Category(name="测试")
+    session.add(cat)
+    session.commit()
+    session.refresh(cat)
+    keyword_food = Keyword(keyword="美食", category_id=cat.id, status="active")
+    keyword_tech = Keyword(keyword="科技", category_id=cat.id, status="active")
     session.add_all([keyword_food, keyword_tech])
     session.commit()
     session.refresh(keyword_food)
@@ -123,7 +127,11 @@ def test_list_trends_returns_daily_aggregates_for_last_seven_days(client, monkey
     monkeypatch.setattr(module, "datetime", FixedDateTime)
 
     session = session_factory()
-    keyword = Keyword(keyword="美食", status="active")
+    cat = Category(name="测试2")
+    session.add(cat)
+    session.commit()
+    session.refresh(cat)
+    keyword = Keyword(keyword="美食", category_id=cat.id, status="active")
     session.add(keyword)
     session.commit()
     session.refresh(keyword)

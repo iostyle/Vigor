@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.database import Base
-from app.models import Keyword
+from app.models import Category, Keyword
 
 from app.api.deps import get_db, verify_api_key
 from app.api.admin.keywords import router
@@ -24,6 +24,15 @@ def client():
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     Base.metadata.create_all(bind=engine)
 
+    # 预置一个 category 供测试使用
+    session = TestingSessionLocal()
+    cat = Category(name="生活")
+    session.add(cat)
+    session.commit()
+    session.refresh(cat)
+    cat_id = cat.id
+    session.close()
+
     app = FastAPI()
     app.include_router(router, prefix="/api/admin")
 
@@ -38,18 +47,18 @@ def client():
     app.dependency_overrides[verify_api_key] = lambda: "test-key"
 
     with TestClient(app) as test_client:
-        yield test_client, TestingSessionLocal
+        yield test_client, TestingSessionLocal, cat_id
 
 
 class TestCreateKeyword:
     def test_create_keyword_returns_created_record(self, client):
-        test_client, _ = client
+        test_client, _, cat_id = client
 
         response = test_client.post(
             "/api/admin/keywords",
             json={
                 "keyword": "美食",
-                "category": "生活",
+                "category_id": cat_id,
                 "crawl_threshold": 1200,
                 "priority": 6,
             },
@@ -58,7 +67,7 @@ class TestCreateKeyword:
         assert response.status_code == 201
         body = response.json()
         assert body["keyword"] == "美食"
-        assert body["category"] == "生活"
+        assert body["category_id"] == cat_id
         assert body["status"] == "active"
         assert body["crawl_threshold"] == 1200
         assert body["priority"] == 6
@@ -67,12 +76,12 @@ class TestCreateKeyword:
 
 class TestListKeywords:
     def test_list_keywords_excludes_deleted(self, client):
-        test_client, session_factory = client
+        test_client, session_factory, cat_id = client
         session = session_factory()
         session.add_all(
             [
-                Keyword(keyword="美食", status="active"),
-                Keyword(keyword="科技", status="deleted"),
+                Keyword(keyword="美食", category_id=cat_id, status="active"),
+                Keyword(keyword="科技", category_id=cat_id, status="deleted"),
             ]
         )
         session.commit()
@@ -86,13 +95,13 @@ class TestListKeywords:
         assert body[0]["keyword"] == "美食"
 
     def test_list_keywords_supports_limit_and_offset(self, client):
-        test_client, session_factory = client
+        test_client, session_factory, cat_id = client
         session = session_factory()
         session.add_all(
             [
-                Keyword(keyword="关键词1", status="active"),
-                Keyword(keyword="关键词2", status="active"),
-                Keyword(keyword="关键词3", status="active"),
+                Keyword(keyword="关键词1", category_id=cat_id, status="active"),
+                Keyword(keyword="关键词2", category_id=cat_id, status="active"),
+                Keyword(keyword="关键词3", category_id=cat_id, status="active"),
             ]
         )
         session.commit()
@@ -108,9 +117,9 @@ class TestListKeywords:
 
 class TestUpdateKeyword:
     def test_update_keyword_returns_modified_record(self, client):
-        test_client, session_factory = client
+        test_client, session_factory, cat_id = client
         session = session_factory()
-        keyword = Keyword(keyword="美食", status="active", priority=5)
+        keyword = Keyword(keyword="美食", category_id=cat_id, status="active", priority=5)
         session.add(keyword)
         session.commit()
         session.refresh(keyword)
@@ -131,9 +140,9 @@ class TestUpdateKeyword:
 
 class TestDeleteKeyword:
     def test_delete_keyword_soft_deletes_record(self, client):
-        test_client, session_factory = client
+        test_client, session_factory, cat_id = client
         session = session_factory()
-        keyword = Keyword(keyword="美食", status="active")
+        keyword = Keyword(keyword="美食", category_id=cat_id, status="active")
         session.add(keyword)
         session.commit()
         session.refresh(keyword)
@@ -154,7 +163,7 @@ class TestDeleteKeyword:
 
 class TestKeywordErrors:
     def test_update_missing_keyword_returns_404(self, client):
-        test_client, _ = client
+        test_client, _, _ = client
 
         response = test_client.put("/api/admin/keywords/999", json={"status": "paused"})
 
@@ -162,7 +171,7 @@ class TestKeywordErrors:
         assert response.json()["detail"] == "Keyword not found"
 
     def test_delete_missing_keyword_returns_404(self, client):
-        test_client, _ = client
+        test_client, _, _ = client
 
         response = test_client.delete("/api/admin/keywords/999")
 
@@ -170,9 +179,9 @@ class TestKeywordErrors:
         assert response.json()["detail"] == "Keyword not found"
 
     def test_update_deleted_keyword_returns_404(self, client):
-        test_client, session_factory = client
+        test_client, session_factory, cat_id = client
         session = session_factory()
-        keyword = Keyword(keyword="美食", status="deleted")
+        keyword = Keyword(keyword="美食", category_id=cat_id, status="deleted")
         session.add(keyword)
         session.commit()
         session.refresh(keyword)
@@ -188,9 +197,9 @@ class TestKeywordErrors:
         assert response.json()["detail"] == "Keyword not found"
 
     def test_delete_deleted_keyword_returns_404(self, client):
-        test_client, session_factory = client
+        test_client, session_factory, cat_id = client
         session = session_factory()
-        keyword = Keyword(keyword="美食", status="deleted")
+        keyword = Keyword(keyword="美食", category_id=cat_id, status="deleted")
         session.add(keyword)
         session.commit()
         session.refresh(keyword)

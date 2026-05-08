@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.api.admin.videos import router
 from app.api.deps import get_db, verify_api_key
+from app.models.category import Category
 from app.models.comment import CommentSummary
 from app.models.keyword import Keyword
 from app.models.video import Video
@@ -30,11 +31,15 @@ def client(app):
 
 @pytest.fixture
 def seed_data(test_db):
-    keyword = Keyword(keyword="健身", priority=1)
+    cat = Category(name="运动")
+    test_db.add(cat)
+    test_db.flush()
+
+    keyword = Keyword(keyword="健身", category_id=cat.id, priority=1)
     test_db.add(keyword)
     test_db.flush()
 
-    other_keyword = Keyword(keyword="瑜伽", priority=2)
+    other_keyword = Keyword(keyword="瑜伽", category_id=cat.id, priority=2)
     test_db.add(other_keyword)
     test_db.flush()
 

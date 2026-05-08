@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.database import Base
-from app.models import Keyword, Video
+from app.models import Category, Keyword, Video
 
 
 class FakeDouyinClient:
@@ -58,7 +58,11 @@ def test_update_videos_task_updates_due_videos_by_heat_tier(
             return fixed_now
 
     session = session_factory()
-    keyword = Keyword(keyword="美食", status="active")
+    cat = Category(name="测试")
+    session.add(cat)
+    session.commit()
+    session.refresh(cat)
+    keyword = Keyword(keyword="美食", category_id=cat.id, status="active")
     session.add(keyword)
     session.commit()
     session.refresh(keyword)
@@ -207,7 +211,11 @@ def test_update_videos_task_triggers_comment_recrawl_when_comment_growth_exceeds
             return fixed_now
 
     session = session_factory()
-    keyword = Keyword(keyword="科技", status="active")
+    cat = Category(name="测试")
+    session.add(cat)
+    session.commit()
+    session.refresh(cat)
+    keyword = Keyword(keyword="科技", category_id=cat.id, status="active")
     session.add(keyword)
     session.commit()
     session.refresh(keyword)

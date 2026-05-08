@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 from app.api.admin.tasks import router
 from app.api.deps import get_db, verify_api_key
 from app.database import Base
-from app.models import Keyword, CrawlTask, Video  # noqa: F401  ensure models registered
+from app.models import Category, Keyword, CrawlTask, Video  # noqa: F401  ensure models registered
 
 
 @pytest.fixture
@@ -45,7 +45,13 @@ def client():
 
 
 def _create_keyword(session, keyword="python") -> Keyword:
-    kw = Keyword(keyword=keyword, category="tech", status="active")
+    cat = session.query(Category).first()
+    if cat is None:
+        cat = Category(name="tech")
+        session.add(cat)
+        session.commit()
+        session.refresh(cat)
+    kw = Keyword(keyword=keyword, category_id=cat.id, status="active")
     session.add(kw)
     session.commit()
     session.refresh(kw)

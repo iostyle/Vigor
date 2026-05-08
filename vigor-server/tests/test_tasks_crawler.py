@@ -112,6 +112,7 @@ def keyword():
     return Keyword(
         id=1,
         keyword="美食",
+        category_id=1,
         status="active",
         crawl_threshold=1000,
         priority=5,
@@ -250,6 +251,7 @@ def test_crawl_keyword_task_inactive_keyword(monkeypatch):
     keyword = Keyword(
         id=2,
         keyword="停用",
+        category_id=1,
         status="disabled",
         crawl_threshold=1000,
         priority=5,
@@ -269,8 +271,8 @@ def test_crawl_keyword_task_inactive_keyword(monkeypatch):
 
 def test_crawl_all_keywords_dispatches(monkeypatch):
     active = [
-        Keyword(id=1, keyword="a", status="active", priority=8, crawl_threshold=1000),
-        Keyword(id=2, keyword="b", status="active", priority=3, crawl_threshold=1000),
+        Keyword(id=1, keyword="a", category_id=1, status="active", priority=8, crawl_threshold=1000),
+        Keyword(id=2, keyword="b", category_id=1, status="active", priority=3, crawl_threshold=1000),
     ]
     session = FakeSession(keywords=active)
     monkeypatch.setattr(crawler, "SessionLocal", lambda: session)

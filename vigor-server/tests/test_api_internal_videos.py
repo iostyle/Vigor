@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import settings
 from app.database import Base
-from app.models import Comment, CommentSummary, Keyword, Video
+from app.models import Category, Comment, CommentSummary, Keyword, Video
 
 
 @pytest.fixture()
@@ -50,8 +50,12 @@ HEADERS = {"X-API-Key": "test-key"}
 
 def _seed_videos(session_factory):
     session = session_factory()
-    keyword = Keyword(keyword="美食", status="active")
-    other = Keyword(keyword="科技", status="active")
+    cat = Category(name="测试")
+    session.add(cat)
+    session.commit()
+    session.refresh(cat)
+    keyword = Keyword(keyword="美食", category_id=cat.id, status="active")
+    other = Keyword(keyword="科技", category_id=cat.id, status="active")
     session.add_all([keyword, other])
     session.commit()
     session.refresh(keyword)

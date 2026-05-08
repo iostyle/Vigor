@@ -25,6 +25,38 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# ---------- aid ↔ BV 号转换 ----------
+# 使用 abv-py 库进行 B站 aid 和 BV 号的互转
+try:
+    from abv_py import av2bv, bv2av
+except ImportError:
+    # 如果 abv-py 未安装,提供降级实现(仅支持小 aid)
+    logger.warning("abv-py 未安装,aid/bvid 转换可能不支持大数字")
+
+    def av2bv(aid: int) -> str:
+        """降级实现:仅支持 aid < 2^30"""
+        _BV_TABLE = "fZodR9XQDSUm21yCkr6zBqiveYah8bt4xsWpHnJE7jL5VG3guMTKNPAwcF"
+        _BV_S = [11, 10, 3, 8, 4, 6]
+        _BV_XOR = 177451812
+        _BV_ADD = 8728348608
+        aid = (aid ^ _BV_XOR) + _BV_ADD
+        r = list("BV1  4 1 7  ")
+        for i in range(6):
+            r[_BV_S[i]] = _BV_TABLE[aid // 58**i % 58]
+        return "".join(r)
+
+    def bv2av(bvid: str) -> int:
+        """降级实现:仅支持 aid < 2^30"""
+        _BV_TABLE = "fZodR9XQDSUm21yCkr6zBqiveYah8bt4xsWpHnJE7jL5VG3guMTKNPAwcF"
+        _BV_TR = {c: i for i, c in enumerate(_BV_TABLE)}
+        _BV_S = [11, 10, 3, 8, 4, 6]
+        _BV_XOR = 177451812
+        _BV_ADD = 8728348608
+        r = 0
+        for i in range(6):
+            r += _BV_TR[bvid[_BV_S[i]]] * 58**i
+        return (r - _BV_ADD) ^ _BV_XOR
+
 
 class BilibiliClient:
     """B 站数据接口客户端,支持 mock 模式。
@@ -320,9 +352,15 @@ class BilibiliClient:
                     except json.JSONDecodeError:
                         continue
                     normalized = self._normalize_bili_comment(raw)
+                    # MC 评论 JSONL 里 video_id 是数字 aid,需要转 BV 号来匹配
                     vid = str(raw.get("video_id") or "")
                     if vid:
-                        comments_by_video.setdefault(vid, []).append(normalized)
+                        try:
+                            bvid = av2bv(int(vid))
+                        except (ValueError, TypeError) as e:
+                            logger.warning(f"无法转换评论 video_id={vid} 为 BV 号: {e}")
+                            bvid = vid
+                        comments_by_video.setdefault(bvid, []).append(normalized)
 
             for v in videos:
                 v["comments"] = comments_by_video.get(v["external_id"], [])[:comments_per_video]
@@ -386,6 +424,17 @@ class BilibiliClient:
                 f"stderr:\n{stderr[-2000:]}"
             )
 
+        # video_id 参数是 BV 号,MC 评论 JSONL 里 video_id 是数字 aid
+        # 需要将传入的 BV 号转为 aid 来做过滤匹配
+        if video_id.startswith("BV"):
+            try:
+                filter_aid = str(bv2av(video_id))
+            except (ValueError, TypeError) as e:
+                logger.warning(f"无法转换 BV 号={video_id} 为 aid: {e}")
+                filter_aid = video_id
+        else:
+            filter_aid = video_id
+
         results: list[dict] = []
         if comments_file.exists():
             with open(comments_file, "r", encoding="utf-8") as f:
@@ -397,7 +446,7 @@ class BilibiliClient:
                         raw = json.loads(line)
                     except json.JSONDecodeError:
                         continue
-                    if str(raw.get("video_id") or "") != str(video_id):
+                    if str(raw.get("video_id") or "") != filter_aid:
                         continue
                     results.append(self._normalize_bili_comment(raw))
 
@@ -421,8 +470,20 @@ class BilibiliClient:
 
     @classmethod
     def _normalize_bili_item(cls, raw: dict) -> dict:
-        """把 MediaCrawler 的 B 站视频条目转成 DouyinClient 兼容字段"""
-        video_id = str(raw.get("video_id") or raw.get("aid") or raw.get("bvid") or "")
+        """把 MediaCrawler 的 B 站视频条目转成统一字段,external_id 使用 BV 号"""
+        raw_id = str(raw.get("video_id") or raw.get("aid") or raw.get("bvid") or "")
+
+        # 优先使用 bvid;如果只有数字 aid,转换为 BV 号
+        if raw_id.startswith("BV"):
+            bvid = raw_id
+        else:
+            try:
+                bvid = av2bv(int(raw_id))
+            except (ValueError, TypeError) as e:
+                # 无法转换时保留原始值
+                logger.warning(f"无法转换 aid={raw_id} 为 BV 号: {e}")
+                bvid = raw_id
+
         title = raw.get("title") or raw.get("desc") or ""
         author_name = raw.get("nickname") or raw.get("user_name") or ""
         author_id = str(raw.get("user_id") or raw.get("mid") or "")
@@ -434,13 +495,16 @@ class BilibiliClient:
 
         cover_url = raw.get("video_cover_url") or raw.get("cover_url") or ""
         video_url = raw.get("video_url") or ""
-        if not video_url and video_id:
-            video_url = f"https://www.bilibili.com/video/av{video_id}"
+        # 用 BV 号构建标准 URL
+        if not video_url and bvid:
+            video_url = f"https://www.bilibili.com/video/{bvid}"
+        elif video_url and "/av" in video_url and bvid.startswith("BV"):
+            video_url = f"https://www.bilibili.com/video/{bvid}"
 
         publish_time = cls._timestamp_to_iso(raw.get("create_time") or raw.get("publish_time"))
 
         return {
-            "external_id": video_id,
+            "external_id": bvid,
             "title": title,
             "author_name": author_name,
             "author_id": author_id,
