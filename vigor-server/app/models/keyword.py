@@ -13,7 +13,6 @@ class Keyword(Base):
     id = Column(Integer, primary_key=True, index=True)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=False, index=True)
     keyword = Column(String(255), nullable=False)
-    platform = Column(String(20), nullable=False, default="douyin", server_default="douyin", index=True)
     status = Column(String(20), default="active")
     crawl_threshold = Column(Integer, default=1000)
     priority = Column(Integer, default=5)

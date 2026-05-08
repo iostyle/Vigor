@@ -138,7 +138,7 @@ def test_update_videos_task_updates_due_videos_by_heat_tier(
 
     monkeypatch.setattr(updater_module, "SessionLocal", session_factory)
     monkeypatch.setattr(updater_module, "datetime", FixedDateTime)
-    monkeypatch.setattr(updater_module, "_get_douyin_client", lambda: client)
+    monkeypatch.setattr(updater_module, "get_client", lambda platform: client)
     monkeypatch.setattr(
         updater_module,
         "calculate_heat_score",
@@ -249,7 +249,7 @@ def test_update_videos_task_triggers_comment_recrawl_when_comment_growth_exceeds
 
     monkeypatch.setattr(updater_module, "SessionLocal", session_factory)
     monkeypatch.setattr(updater_module, "datetime", FixedDateTime)
-    monkeypatch.setattr(updater_module, "_get_douyin_client", lambda: client)
+    monkeypatch.setattr(updater_module, "get_client", lambda platform: client)
     monkeypatch.setattr(updater_module, "calculate_heat_score", lambda *args: 999.0)
     monkeypatch.setattr(updater_module.celery_app, "send_task", fake_send_task)
 

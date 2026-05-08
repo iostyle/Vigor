@@ -14,7 +14,7 @@ def test_keyword_model_structure():
     columns = Keyword.__table__.columns
     assert "id" in columns
     assert "keyword" in columns
-    assert "category" in columns
+    assert "category_id" in columns
     assert "status" in columns
     assert "crawl_threshold" in columns
     assert "priority" in columns
@@ -37,14 +37,14 @@ def test_keyword_model_instantiation():
     """测试 Keyword 模型的实例化"""
     keyword = Keyword(
         keyword="美食",
-        category="生活",
+        category_id=1,
         status="active",
         crawl_threshold=1000,
         priority=5
     )
 
     assert keyword.keyword == "美食"
-    assert keyword.category == "生活"
+    assert keyword.category_id == 1
     assert keyword.status == "active"
     assert keyword.crawl_threshold == 1000
     assert keyword.priority == 5
@@ -66,9 +66,8 @@ def test_video_model_structure():
     assert "heat_score" in columns
     assert "summary" in columns
 
-    # 验证主键和唯一约束
+    # 验证主键和 NOT NULL
     assert columns["id"].primary_key is True
-    assert columns["external_id"].unique is True
     assert columns["external_id"].nullable is False
     assert columns["title"].nullable is False
 

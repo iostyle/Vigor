@@ -12,48 +12,48 @@ from app.schemas.task import CrawlTaskResponse
 
 class TestKeywordCreate:
     def test_valid_minimal(self):
-        schema = KeywordCreate(keyword="美食")
+        schema = KeywordCreate(keyword="美食", category_id=1)
         assert schema.keyword == "美食"
-        assert schema.category is None
+        assert schema.category_id == 1
         assert schema.crawl_threshold == 1000
         assert schema.priority == 5
 
     def test_valid_full(self):
         schema = KeywordCreate(
             keyword="科技数码",
-            category="科技",
+            category_id=2,
             crawl_threshold=500,
             priority=8,
         )
         assert schema.keyword == "科技数码"
-        assert schema.category == "科技"
+        assert schema.category_id == 2
         assert schema.crawl_threshold == 500
         assert schema.priority == 8
 
     def test_keyword_required(self):
         with pytest.raises(ValidationError):
-            KeywordCreate()
+            KeywordCreate(category_id=1)
 
     def test_keyword_empty_string_rejected(self):
         with pytest.raises(ValidationError):
-            KeywordCreate(keyword="")
+            KeywordCreate(keyword="", category_id=1)
 
     def test_priority_range(self):
         with pytest.raises(ValidationError):
-            KeywordCreate(keyword="test", priority=0)
+            KeywordCreate(keyword="test", category_id=1, priority=0)
         with pytest.raises(ValidationError):
-            KeywordCreate(keyword="test", priority=11)
+            KeywordCreate(keyword="test", category_id=1, priority=11)
 
     def test_crawl_threshold_positive(self):
         with pytest.raises(ValidationError):
-            KeywordCreate(keyword="test", crawl_threshold=-1)
+            KeywordCreate(keyword="test", category_id=1, crawl_threshold=-1)
 
 
 class TestKeywordUpdate:
     def test_all_optional(self):
         schema = KeywordUpdate()
         assert schema.keyword is None
-        assert schema.category is None
+        assert schema.category_id is None
         assert schema.status is None
         assert schema.crawl_threshold is None
         assert schema.priority is None
@@ -80,7 +80,7 @@ class TestKeywordResponse:
         class FakeORM:
             id = 1
             keyword = "美食"
-            category = "生活"
+            category_id = 1
             status = "active"
             crawl_threshold = 1000
             priority = 5

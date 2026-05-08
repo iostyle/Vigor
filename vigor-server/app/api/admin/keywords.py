@@ -34,7 +34,6 @@ def create_keyword(payload: KeywordCreate, db: DbSession) -> Keyword:
     keyword = Keyword(
         category_id=payload.category_id,
         keyword=payload.keyword,
-        platform=payload.platform,
         status="active",
         crawl_threshold=payload.crawl_threshold,
         priority=payload.priority,
@@ -49,15 +48,12 @@ def create_keyword(payload: KeywordCreate, db: DbSession) -> Keyword:
 def list_keywords(
     db: DbSession,
     category_id: int | None = Query(None, ge=1),
-    platform: str | None = Query(None, max_length=20),
     limit: int = 100,
     offset: int = 0,
 ) -> list[Keyword]:
     query = db.query(Keyword).filter(Keyword.status != "deleted")
     if category_id is not None:
         query = query.filter(Keyword.category_id == category_id)
-    if platform is not None:
-        query = query.filter(Keyword.platform == platform)
     return query.order_by(Keyword.id.asc()).offset(offset).limit(limit).all()
 
 

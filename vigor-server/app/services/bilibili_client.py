@@ -109,7 +109,6 @@ class BilibiliClient:
         publish_time = datetime.now(timezone.utc) - timedelta(minutes=offset_minutes)
         vid = f"bili_mock_{keyword}_{index:04d}"
         return {
-            # Phase 1 兼容:字段名仍叫 external_id(= external_id)
             "external_id": vid,
             "title": f"【B站】{keyword} 热门视频 #{index}",
             "author_name": f"UP主_{rng.randint(1, 9999):04d}",
