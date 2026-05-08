@@ -174,7 +174,6 @@ onMounted(() => {
 
 <style scoped>
 .categories-page {
-  max-width: 1200px;
 }
 
 .page-header {

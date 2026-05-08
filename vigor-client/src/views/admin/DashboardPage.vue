@@ -120,7 +120,6 @@ onMounted(() => {
 
 <style scoped>
 .dashboard-page {
-  max-width: 1200px;
 }
 
 .page-header {

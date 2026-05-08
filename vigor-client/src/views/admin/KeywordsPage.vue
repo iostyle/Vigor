@@ -218,7 +218,6 @@ onMounted(() => {
 
 <style scoped>
 .keywords-page {
-  max-width: 1200px;
 }
 
 .page-header {
