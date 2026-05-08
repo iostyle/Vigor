@@ -233,8 +233,11 @@ class BilibiliClient:
         contents_file = mc_path / "data" / "bili" / "jsonl" / f"search_contents_{date_str}.jsonl"
         comments_file = mc_path / "data" / "bili" / "jsonl" / f"search_comments_{date_str}.jsonl"
 
-        existing_contents = self._count_lines(contents_file)
-        existing_comments = self._count_lines(comments_file)
+        # 清空旧文件避免 MediaCrawler 去重导致增量为 0
+        if contents_file.exists():
+            contents_file.unlink()
+        if comments_file.exists():
+            comments_file.unlink()
 
         env = os.environ.copy()
         if self.http_proxy:
@@ -279,9 +282,7 @@ class BilibiliClient:
         videos: list[dict] = []
         if contents_file.exists():
             with open(contents_file, "r", encoding="utf-8") as f:
-                for idx, line in enumerate(f):
-                    if idx < existing_contents:
-                        continue
+                for line in f:
                     line = line.strip()
                     if not line:
                         continue
@@ -298,9 +299,7 @@ class BilibiliClient:
         if include_comments and comments_file.exists():
             comments_by_video: dict[str, list[dict]] = {}
             with open(comments_file, "r", encoding="utf-8") as f:
-                for idx, line in enumerate(f):
-                    if idx < existing_comments:
-                        continue
+                for line in f:
                     line = line.strip()
                     if not line:
                         continue
@@ -309,7 +308,6 @@ class BilibiliClient:
                     except json.JSONDecodeError:
                         continue
                     normalized = self._normalize_bili_comment(raw)
-                    # B 站评论用 video_id 关联,不是 aweme_id
                     vid = str(raw.get("video_id") or "")
                     if vid:
                         comments_by_video.setdefault(vid, []).append(normalized)
