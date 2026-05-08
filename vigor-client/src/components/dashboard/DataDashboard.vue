@@ -13,7 +13,7 @@
     <div v-else class="dashboard-content">
       <!-- 视频详情 -->
       <section class="section video-detail">
-        <div class="video-player-container" :class="{ fullscreen: isFullscreen }">
+        <div class="video-player-container">
           <video
             v-if="video.video_url"
             :poster="video.cover_url || undefined"
@@ -30,14 +30,6 @@
               <span>暂无视频源</span>
             </div>
           </div>
-          <button class="fullscreen-btn" @click="toggleFullscreen" title="网页全屏">
-            <svg v-if="!isFullscreen" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-              <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
-            </svg>
-            <svg v-else viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-              <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
-            </svg>
-          </button>
         </div>
         <div class="video-info">
           <h1 class="video-title">{{ video.title }}</h1>
@@ -45,6 +37,12 @@
             <span class="author">{{ video.author_name || '匿名作者' }}</span>
             <span class="divider">·</span>
             <span class="publish-time">{{ formatDate(video.publish_time) }}</span>
+            <a class="external-link" :href="originalUrl" target="_blank" rel="noopener">
+              查看原视频
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
+              </svg>
+            </a>
           </div>
           <div class="metrics">
             <div class="metric">
@@ -176,7 +174,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import type { Video } from '@/types/video'
 import { formatNumber, formatDate, formatHeatScore, formatSentiment } from '@/utils/format'
 
@@ -184,11 +182,10 @@ const props = defineProps<{
   video: Video | null
 }>()
 
-const isFullscreen = ref(false)
-
-function toggleFullscreen() {
-  isFullscreen.value = !isFullscreen.value
-}
+const originalUrl = computed(() => {
+  if (!props.video) return '#'
+  return props.video.video_url || `https://www.douyin.com/video/${props.video.douyin_id}`
+})
 
 const heatInfo = computed(() => formatHeatScore(props.video?.heat_score ?? null))
 const sentimentInfo = computed(() =>
@@ -277,27 +274,10 @@ const sentimentInfo = computed(() =>
   background-color: var(--bg-tertiary);
 }
 
-.video-player-container.fullscreen {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 9999;
-  flex: none;
-  border-radius: 0;
-}
-
 .video-player {
   width: 100%;
   aspect-ratio: 16 / 9;
   background-color: #000;
-}
-
-.video-player-container.fullscreen .video-player {
-  width: 100%;
-  height: 100%;
-  aspect-ratio: auto;
 }
 
 .video-poster {
@@ -331,34 +311,6 @@ const sentimentInfo = computed(() =>
 
 .no-video-overlay svg {
   opacity: 0.6;
-}
-
-.fullscreen-btn {
-  position: absolute;
-  top: var(--spacing-md);
-  right: var(--spacing-md);
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: var(--radius-md);
-  background-color: rgba(0, 0, 0, 0.5);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  opacity: 0;
-  transition: all var(--transition-fast);
-  backdrop-filter: blur(8px);
-}
-
-.video-player-container:hover .fullscreen-btn {
-  opacity: 1;
-}
-
-.fullscreen-btn:hover {
-  background-color: rgba(0, 0, 0, 0.7);
-  transform: scale(1.05);
 }
 
 .video-cover {
@@ -409,6 +361,31 @@ const sentimentInfo = computed(() =>
   font-size: 13px;
   color: var(--text-secondary);
   margin-bottom: var(--spacing-lg);
+}
+
+.external-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 6px 12px;
+  background-color: var(--bg-secondary);
+  color: var(--primary-color);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+  border: 1px solid var(--border-color);
+}
+
+.external-link:hover {
+  background-color: var(--bg-tertiary);
+  border-color: var(--primary-color);
+}
+
+.external-link svg {
+  opacity: 0.7;
 }
 
 .divider {
