@@ -16,12 +16,15 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import random
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class BilibiliClient:
@@ -296,6 +299,17 @@ class BilibiliClient:
 
         videos = videos[:limit]
 
+        if not videos:
+            # Why: 子进程 returncode=0 但没写任何数据,往往是登录过期 / 风控 /
+            # MC 早退。不能静默返回 [],必须把 stdout/stderr 尾巴吐出来以便定位。
+            logger.warning(
+                "BilibiliClient.search_videos(keyword=%r) 返回 0 条视频。"
+                "MC stdout 尾:\n%s\nMC stderr 尾:\n%s",
+                keyword,
+                stdout[-1500:] if stdout else "<empty>",
+                stderr[-1500:] if stderr else "<empty>",
+            )
+
         if include_comments and comments_file.exists():
             comments_by_video: dict[str, list[dict]] = {}
             with open(comments_file, "r", encoding="utf-8") as f:
@@ -331,7 +345,10 @@ class BilibiliClient:
 
         date_str = datetime.now().strftime("%Y-%m-%d")
         comments_file = mc_path / "data" / "bili" / "jsonl" / f"detail_comments_{date_str}.jsonl"
-        existing_comments = self._count_lines(comments_file)
+
+        # 和 search 路径一样,每次调用清空旧文件,避免 MC 去重导致新增 0 行
+        if comments_file.exists():
+            comments_file.unlink()
 
         env = os.environ.copy()
         if self.http_proxy:
@@ -374,9 +391,7 @@ class BilibiliClient:
         results: list[dict] = []
         if comments_file.exists():
             with open(comments_file, "r", encoding="utf-8") as f:
-                for idx, line in enumerate(f):
-                    if idx < existing_comments:
-                        continue
+                for line in f:
                     line = line.strip()
                     if not line:
                         continue
@@ -387,6 +402,15 @@ class BilibiliClient:
                     if str(raw.get("video_id") or "") != str(video_id):
                         continue
                     results.append(self._normalize_bili_comment(raw))
+
+        if not results:
+            logger.warning(
+                "BilibiliClient.get_comments(video_id=%r) 返回 0 条评论。"
+                "MC stdout 尾:\n%s\nMC stderr 尾:\n%s",
+                video_id,
+                stdout[-1500:] if stdout else "<empty>",
+                stderr[-1500:] if stderr else "<empty>",
+            )
 
         if sort_by == "like":
             results.sort(key=lambda c: c["like_count"], reverse=True)
