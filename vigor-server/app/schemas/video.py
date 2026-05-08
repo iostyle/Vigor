@@ -13,6 +13,8 @@ class VideoResponse(BaseModel):
     douyin_id: str
     title: str
     author_name: Optional[str] = None
+    cover_url: Optional[str] = None
+    video_url: Optional[str] = None
     like_count: int = 0
     comment_count: int = 0
     share_count: int = 0
