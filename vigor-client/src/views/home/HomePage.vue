@@ -15,6 +15,7 @@
           @select="handleVideoSelect"
           @change-sort="handleSortChange"
           @change-time-window="handleTimeWindowChange"
+          @change-platform="handlePlatformChange"
         />
       </div>
 
@@ -63,6 +64,10 @@ function handleSortChange(sort: 'heat_score' | 'publish_time') {
 
 function handleTimeWindowChange(window: '1d' | '3d' | '7d' | '15d' | '30d' | null) {
   videoStore.setTimeWindow(window)
+}
+
+function handlePlatformChange(platform: string | null) {
+  videoStore.setPlatform(platform)
 }
 
 function handleBack() {

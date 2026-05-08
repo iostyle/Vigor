@@ -3,6 +3,11 @@
     <div class="list-header">
       <h2>热门视频</h2>
       <div class="filters">
+        <select v-model="platform" class="select" @change="handlePlatformChange">
+          <option value="">全部</option>
+          <option value="dy">抖音</option>
+          <option value="bili">B站</option>
+        </select>
         <select v-model="sortBy" class="select" @change="handleSortChange">
           <option value="heat_score">按热度</option>
           <option value="publish_time">按时间</option>
@@ -55,10 +60,12 @@ const emit = defineEmits<{
   (e: 'select', id: number): void
   (e: 'change-sort', sort: 'heat_score' | 'publish_time'): void
   (e: 'change-time-window', window: '1d' | '3d' | '7d' | '15d' | '30d' | null): void
+  (e: 'change-platform', platform: string | null): void
 }>()
 
 const sortBy = ref<'heat_score' | 'publish_time'>('heat_score')
 const timeWindow = ref<string>('')
+const platform = ref<string>('')
 
 function handleSelect(id: number) {
   emit('select', id)
@@ -71,6 +78,10 @@ function handleSortChange() {
 function handleTimeWindowChange() {
   const value = timeWindow.value as '1d' | '3d' | '7d' | '15d' | '30d' | ''
   emit('change-time-window', value === '' ? null : value)
+}
+
+function handlePlatformChange() {
+  emit('change-platform', platform.value === '' ? null : platform.value)
 }
 </script>
 

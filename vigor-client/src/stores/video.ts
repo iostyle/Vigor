@@ -9,6 +9,7 @@ export const useVideoStore = defineStore('video', () => {
   const total = ref(0)
   const loading = ref(false)
   const currentCategoryId = ref<number | null>(null)
+  const currentPlatform = ref<string | null>(null)
   const sortBy = ref<'heat_score' | 'publish_time'>('heat_score')
   const timeWindow = ref<'1d' | '3d' | '7d' | '15d' | '30d' | null>(null)
 
@@ -20,6 +21,7 @@ export const useVideoStore = defineStore('video', () => {
           currentCategoryId.value && currentCategoryId.value > 0
             ? currentCategoryId.value
             : undefined,
+        platform: currentPlatform.value || undefined,
         time_window: timeWindow.value || undefined,
         sort: sortBy.value,
         limit: 20,
@@ -66,18 +68,25 @@ export const useVideoStore = defineStore('video', () => {
     fetchVideos()
   }
 
+  function setPlatform(platform: string | null) {
+    currentPlatform.value = platform
+    fetchVideos()
+  }
+
   return {
     videos,
     selectedVideo,
     total,
     loading,
     currentCategoryId,
+    currentPlatform,
     sortBy,
     timeWindow,
     fetchVideos,
     selectVideo,
     setCategoryId,
     setSortBy,
-    setTimeWindow
+    setTimeWindow,
+    setPlatform
   }
 })
