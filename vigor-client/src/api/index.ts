@@ -14,11 +14,14 @@ const instance: AxiosInstance = axios.create({
 
 instance.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // API Key 用于后端服务端鉴权(internal/admin API 都走 verify_api_key)
+    if (apiKey) {
+      config.headers['X-API-Key'] = apiKey
+    }
+    // Token 仅在访问管理员 API 时作为登录凭证附加,不覆盖 API Key
     const token = storage.get<string>(TOKEN_KEY)
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
-    } else if (apiKey) {
-      config.headers['X-API-Key'] = apiKey
     }
     return config
   },
