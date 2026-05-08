@@ -59,21 +59,21 @@ def _seed_videos(session_factory):
 
     now = datetime.utcnow()
     v1 = Video(
-        douyin_id="v1",
+        external_id="v1",
         keyword_id=keyword.id,
         title="视频1",
         heat_score=9000.0,
         publish_time=now - timedelta(days=1),
     )
     v2 = Video(
-        douyin_id="v2",
+        external_id="v2",
         keyword_id=keyword.id,
         title="视频2",
         heat_score=5000.0,
         publish_time=now - timedelta(days=2),
     )
     v3 = Video(
-        douyin_id="v3",
+        external_id="v3",
         keyword_id=other.id,
         title="视频3",
         heat_score=8000.0,
@@ -116,7 +116,7 @@ def test_list_videos_filters_by_keyword(client):
     assert response.status_code == 200
     body = response.json()
     assert body["total"] == 2
-    assert all(v["douyin_id"] in ("v1", "v2") for v in body["data"])
+    assert all(v["external_id"] in ("v1", "v2") for v in body["data"])
 
 
 def test_list_videos_filters_by_time_window(client):
@@ -161,7 +161,7 @@ def test_get_video_returns_detail(client):
     assert response.status_code == 200
     body = response.json()
     assert body["id"] == v1_id
-    assert body["douyin_id"] == "v1"
+    assert body["external_id"] == "v1"
 
 
 def test_get_video_404(client):
@@ -179,13 +179,13 @@ def test_get_video_comments(client):
         [
             Comment(
                 video_id=v1_id,
-                douyin_comment_id="c1",
+                external_comment_id="c1",
                 content="评论1",
                 like_count=100,
             ),
             Comment(
                 video_id=v1_id,
-                douyin_comment_id="c2",
+                external_comment_id="c2",
                 content="评论2",
                 like_count=300,
             ),

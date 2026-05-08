@@ -70,7 +70,8 @@ class DouyinClient:
         publish_time = datetime.now(timezone.utc) - timedelta(minutes=offset_minutes)
         vid = f"mock_{keyword}_{index:04d}"
         return {
-            "douyin_id": vid,
+            "platform": "douyin",
+            "external_id": vid,
             "title": f"{keyword} 热门视频 #{index}",
             "author_name": f"创作者_{rng.randint(1, 9999):04d}",
             "author_id": f"author_{rng.randint(1, 99999):05d}",
@@ -87,7 +88,8 @@ class DouyinClient:
         offset = rng.randint(0, 30 * 24 * 60)
         publish_time = datetime.now(timezone.utc) - timedelta(minutes=offset)
         return {
-            "douyin_comment_id": f"{video_id}_c{index:05d}",
+            "platform": "douyin",
+            "external_comment_id": f"{video_id}_c{index:05d}",
             "author_name": f"用户_{rng.randint(1, 99999):05d}",
             "content": f"这条评论写得真有意思,编号 {index}",
             "like_count": rng.randint(0, 50_000),
@@ -236,7 +238,7 @@ class DouyinClient:
                         comments_by_video.setdefault(aweme_id, []).append(normalized)
 
             for v in videos:
-                v["comments"] = comments_by_video.get(v["douyin_id"], [])[:comments_per_video]
+                v["comments"] = comments_by_video.get(v["external_id"], [])[:comments_per_video]
 
         return videos
 
@@ -283,7 +285,8 @@ class DouyinClient:
             publish_time = datetime.now(timezone.utc).isoformat()
 
         return {
-            "douyin_id": aweme_id,
+            "platform": "douyin",
+            "external_id": aweme_id,
             "title": title,
             "author_name": author_name,
             "author_id": author_id,
@@ -320,7 +323,8 @@ class DouyinClient:
             publish_time = datetime.now(timezone.utc).isoformat()
 
         return {
-            "douyin_comment_id": comment_id,
+            "platform": "douyin",
+            "external_comment_id": comment_id,
             "author_name": nickname,
             "content": content,
             "like_count": like,
@@ -336,7 +340,7 @@ class DouyinClient:
             offset = rng.randint(0, 30 * 24 * 60)
             publish_time = datetime.now(timezone.utc) - timedelta(minutes=offset)
             return {
-                "douyin_id": video_id,
+                "external_id": video_id,
                 "title": f"Mock 视频详情 {video_id}",
                 "author_name": f"创作者_{rng.randint(1, 9999):04d}",
                 "author_id": f"author_{rng.randint(1, 99999):05d}",

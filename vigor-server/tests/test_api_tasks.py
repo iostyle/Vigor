@@ -54,7 +54,7 @@ def _create_keyword(session, keyword="python") -> Keyword:
 
 def _create_video(session, keyword_id: int) -> Video:
     video = Video(
-        douyin_id="v1",
+        external_id="v1",
         keyword_id=keyword_id,
         title="test video",
     )

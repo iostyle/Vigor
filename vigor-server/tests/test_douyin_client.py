@@ -20,7 +20,7 @@ async def test_search_videos_returns_list(client):
 async def test_search_videos_item_structure(client):
     videos = await client.search_videos("科技", limit=3)
     expected_keys = {
-        "douyin_id",
+        "external_id",
         "title",
         "author_name",
         "author_id",
@@ -33,7 +33,7 @@ async def test_search_videos_item_structure(client):
     }
     for item in videos:
         assert expected_keys.issubset(item.keys())
-        assert isinstance(item["douyin_id"], str)
+        assert isinstance(item["external_id"], str)
         assert isinstance(item["like_count"], int)
         assert isinstance(item["comment_count"], int)
         assert isinstance(item["share_count"], int)
@@ -51,7 +51,7 @@ async def test_search_videos_respects_min_heat(client):
 async def test_get_video_detail_structure(client):
     detail = await client.get_video_detail("mock_video_001")
     assert isinstance(detail, dict)
-    assert detail["douyin_id"] == "mock_video_001"
+    assert detail["external_id"] == "mock_video_001"
     for key in (
         "title",
         "author_name",
@@ -74,7 +74,7 @@ async def test_get_comments_returns_list(client):
 async def test_get_comments_item_structure(client):
     comments = await client.get_comments("mock_video_001", limit=5)
     expected_keys = {
-        "douyin_comment_id",
+        "external_comment_id",
         "author_name",
         "content",
         "like_count",

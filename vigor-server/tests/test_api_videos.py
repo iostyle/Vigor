@@ -41,7 +41,7 @@ def seed_data(test_db):
     now = datetime.now()
     videos = [
         Video(
-            douyin_id="dy_1",
+            external_id="dy_1",
             keyword_id=keyword.id,
             title="recent fitness",
             author_name="alice",
@@ -52,7 +52,7 @@ def seed_data(test_db):
             publish_time=now - timedelta(hours=2),
         ),
         Video(
-            douyin_id="dy_2",
+            external_id="dy_2",
             keyword_id=keyword.id,
             title="week-old fitness",
             author_name="bob",
@@ -63,7 +63,7 @@ def seed_data(test_db):
             publish_time=now - timedelta(days=3),
         ),
         Video(
-            douyin_id="dy_3",
+            external_id="dy_3",
             keyword_id=keyword.id,
             title="old fitness",
             like_count=300,
@@ -71,7 +71,7 @@ def seed_data(test_db):
             publish_time=now - timedelta(days=40),
         ),
         Video(
-            douyin_id="dy_4",
+            external_id="dy_4",
             keyword_id=other_keyword.id,
             title="yoga",
             heat_score=70.0,
@@ -114,17 +114,17 @@ class TestListVideos:
         assert resp.status_code == 200
         body = resp.json()
         assert body["total"] == 3
-        assert all(v["douyin_id"] in {"dy_1", "dy_2", "dy_3"} for v in body["data"])
+        assert all(v["external_id"] in {"dy_1", "dy_2", "dy_3"} for v in body["data"])
 
     def test_filter_24h_window(self, client, seed_data):
         resp = client.get("/api/admin/videos", params={"time_window": "24h"})
         assert resp.status_code == 200
-        ids = {v["douyin_id"] for v in resp.json()["data"]}
+        ids = {v["external_id"] for v in resp.json()["data"]}
         assert ids == {"dy_1", "dy_4"}
 
     def test_filter_7d_window(self, client, seed_data):
         resp = client.get("/api/admin/videos", params={"time_window": "7d"})
-        ids = {v["douyin_id"] for v in resp.json()["data"]}
+        ids = {v["external_id"] for v in resp.json()["data"]}
         assert ids == {"dy_1", "dy_2", "dy_4"}
 
     def test_sort_by_heat_score_desc(self, client, seed_data):
@@ -157,7 +157,7 @@ class TestGetVideo:
         assert resp.status_code == 200
         body = resp.json()
         assert body["id"] == video.id
-        assert body["douyin_id"] == "dy_1"
+        assert body["external_id"] == "dy_1"
         assert body["comment_summary"] is not None
         assert body["comment_summary"]["sentiment"] == "positive"
         assert body["comment_summary"]["top_keywords"] == ["good", "amazing", "love"]

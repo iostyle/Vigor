@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Float, TIMESTAMP, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, Float, TIMESTAMP, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -6,9 +6,15 @@ from app.database import Base
 
 class Video(Base):
     __tablename__ = "videos"
+    __table_args__ = (
+        UniqueConstraint(
+            "platform", "external_id", name="uq_videos_platform_external_id"
+        ),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    douyin_id = Column(String(100), unique=True, nullable=False, index=True)
+    platform = Column(String(16), nullable=False, server_default="douyin", index=True)
+    external_id = Column(String(100), nullable=False, index=True)
     keyword_id = Column(Integer, ForeignKey("keywords.id"))
     title = Column(Text, nullable=False)
     author_name = Column(String(255))

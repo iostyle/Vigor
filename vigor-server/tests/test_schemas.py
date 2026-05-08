@@ -133,7 +133,7 @@ class TestVideoResponse:
     def test_minimal(self):
         schema = VideoResponse(
             id=1,
-            douyin_id="dy_001",
+            external_id="dy_001",
             title="测试视频",
             author_name="up",
             like_count=100,
@@ -144,13 +144,13 @@ class TestVideoResponse:
             summary="摘要",
             comment_summary=None,
         )
-        assert schema.douyin_id == "dy_001"
+        assert schema.external_id == "dy_001"
         assert schema.comment_summary is None
 
     def test_with_comment_summary(self):
         schema = VideoResponse(
             id=2,
-            douyin_id="dy_002",
+            external_id="dy_002",
             title="t",
             author_name="a",
             like_count=0,

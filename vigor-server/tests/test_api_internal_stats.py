@@ -61,21 +61,21 @@ def test_list_keyword_stats_returns_video_counts_and_average_heat(client):
     session.add_all(
         [
             Video(
-                douyin_id="food-1",
+                external_id="food-1",
                 keyword_id=keyword_food_id,
                 title="视频1",
                 heat_score=5000.0,
                 publish_time=datetime(2026, 5, 6, 10, 0, 0),
             ),
             Video(
-                douyin_id="food-2",
+                external_id="food-2",
                 keyword_id=keyword_food_id,
                 title="视频2",
                 heat_score=3000.0,
                 publish_time=datetime(2026, 5, 6, 12, 0, 0),
             ),
             Video(
-                douyin_id="tech-1",
+                external_id="tech-1",
                 keyword_id=keyword_tech_id,
                 title="视频3",
                 heat_score=9000.0,
@@ -131,28 +131,28 @@ def test_list_trends_returns_daily_aggregates_for_last_seven_days(client, monkey
     session.add_all(
         [
             Video(
-                douyin_id="recent-1",
+                external_id="recent-1",
                 keyword_id=keyword.id,
                 title="视频1",
                 heat_score=4000.0,
                 publish_time=fixed_now - timedelta(days=1, hours=1),
             ),
             Video(
-                douyin_id="recent-2",
+                external_id="recent-2",
                 keyword_id=keyword.id,
                 title="视频2",
                 heat_score=2000.0,
                 publish_time=fixed_now - timedelta(days=1, hours=3),
             ),
             Video(
-                douyin_id="recent-3",
+                external_id="recent-3",
                 keyword_id=keyword.id,
                 title="视频3",
                 heat_score=3000.0,
                 publish_time=fixed_now - timedelta(days=6),
             ),
             Video(
-                douyin_id="old-1",
+                external_id="old-1",
                 keyword_id=keyword.id,
                 title="视频4",
                 heat_score=9999.0,

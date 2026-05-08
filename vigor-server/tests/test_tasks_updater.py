@@ -64,7 +64,7 @@ def test_update_videos_task_updates_due_videos_by_heat_tier(
     session.refresh(keyword)
 
     hot_due = Video(
-        douyin_id="hot-due",
+        external_id="hot-due",
         keyword_id=keyword.id,
         title="hot",
         like_count=100,
@@ -75,7 +75,7 @@ def test_update_videos_task_updates_due_videos_by_heat_tier(
         last_updated_at=fixed_now - timedelta(hours=2),
     )
     hot_recent = Video(
-        douyin_id="hot-recent",
+        external_id="hot-recent",
         keyword_id=keyword.id,
         title="hot recent",
         like_count=100,
@@ -86,7 +86,7 @@ def test_update_videos_task_updates_due_videos_by_heat_tier(
         last_updated_at=fixed_now - timedelta(minutes=30),
     )
     mid_due = Video(
-        douyin_id="mid-due",
+        external_id="mid-due",
         keyword_id=keyword.id,
         title="mid",
         like_count=80,
@@ -97,7 +97,7 @@ def test_update_videos_task_updates_due_videos_by_heat_tier(
         last_updated_at=fixed_now - timedelta(hours=7),
     )
     low_due = Video(
-        douyin_id="low-due",
+        external_id="low-due",
         keyword_id=keyword.id,
         title="low",
         like_count=10,
@@ -113,21 +113,21 @@ def test_update_videos_task_updates_due_videos_by_heat_tier(
 
     details = {
         "hot-due": {
-            "douyin_id": "hot-due",
+            "external_id": "hot-due",
             "like_count": 300,
             "comment_count": 12,
             "share_count": 10,
             "publish_time": fixed_now.isoformat(),
         },
         "mid-due": {
-            "douyin_id": "mid-due",
+            "external_id": "mid-due",
             "like_count": 120,
             "comment_count": 9,
             "share_count": 6,
             "publish_time": fixed_now.isoformat(),
         },
         "low-due": {
-            "douyin_id": "low-due",
+            "external_id": "low-due",
             "like_count": 20,
             "comment_count": 1,
             "share_count": 1,
@@ -158,16 +158,16 @@ def test_update_videos_task_updates_due_videos_by_heat_tier(
 
     verify_session = session_factory()
     hot_due_db = (
-        verify_session.query(Video).filter(Video.douyin_id == "hot-due").first()
+        verify_session.query(Video).filter(Video.external_id == "hot-due").first()
     )
     hot_recent_db = (
-        verify_session.query(Video).filter(Video.douyin_id == "hot-recent").first()
+        verify_session.query(Video).filter(Video.external_id == "hot-recent").first()
     )
     mid_due_db = (
-        verify_session.query(Video).filter(Video.douyin_id == "mid-due").first()
+        verify_session.query(Video).filter(Video.external_id == "mid-due").first()
     )
     low_due_db = (
-        verify_session.query(Video).filter(Video.douyin_id == "low-due").first()
+        verify_session.query(Video).filter(Video.external_id == "low-due").first()
     )
 
     assert hot_due_db.like_count == 300
@@ -213,7 +213,7 @@ def test_update_videos_task_triggers_comment_recrawl_when_comment_growth_exceeds
     session.refresh(keyword)
 
     video = Video(
-        douyin_id="growth-video",
+        external_id="growth-video",
         keyword_id=keyword.id,
         title="growth",
         like_count=50,
@@ -232,7 +232,7 @@ def test_update_videos_task_triggers_comment_recrawl_when_comment_growth_exceeds
     client = FakeDouyinClient(
         {
             "growth-video": {
-                "douyin_id": "growth-video",
+                "external_id": "growth-video",
                 "like_count": 60,
                 "comment_count": 13,
                 "share_count": 3,

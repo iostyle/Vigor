@@ -12,9 +12,9 @@ from app.services.platform_client import get_client
 from app.tasks.processor import generate_summary_task
 
 
-def _get_client_for_keyword(keyword: Keyword):
-    """按 keyword.platform 选择具体平台 client,默认 'douyin' 保持向后兼容"""
-    return get_client(getattr(keyword, "platform", None) or "douyin")
+def _get_client_for_platform(platform: str | None):
+    """按显式传入的 platform 参数选择具体平台 client,默认 'douyin'"""
+    return get_client(platform or "douyin")
 
 
 def _parse_time(value) -> datetime | None:
@@ -35,8 +35,12 @@ def _parse_time(value) -> datetime | None:
     max_retries=3,
     default_retry_delay=60,
 )
-def crawl_keyword_task(self, keyword_id: int):
-    """按关键词爬取抖音视频与热门评论,并派发摘要任务"""
+def crawl_keyword_task(self, keyword_id: int, platform: str = "douyin"):
+    """按关键词在指定平台爬取视频与热门评论,并派发摘要任务
+
+    platform 从 trigger_crawl API 请求体传入,不再依赖 keyword.platform
+    (keyword 和 platform 已正交,同一关键词可在多平台使用)
+    """
     db = SessionLocal()
     task_record = CrawlTask(
         keyword_id=keyword_id,
@@ -53,7 +57,7 @@ def crawl_keyword_task(self, keyword_id: int):
         if keyword.status != "active":
             return {"status": "skipped", "reason": "keyword disabled"}
 
-        client = _get_client_for_keyword(keyword)
+        client = _get_client_for_platform(platform)
 
         raw_videos = asyncio.run(
             client.search_videos(
@@ -65,15 +69,18 @@ def crawl_keyword_task(self, keyword_id: int):
         )
 
         existing_ids = {
-            v.douyin_id
+            v.external_id
             for v in db.query(Video)
-            .filter(Video.douyin_id.in_([r["douyin_id"] for r in raw_videos]))
+            .filter(
+                Video.platform == platform,
+                Video.external_id.in_([r["external_id"] for r in raw_videos]),
+            )
             .all()
         }
 
         saved_videos: list[Video] = []
         for item in raw_videos:
-            if item["douyin_id"] in existing_ids:
+            if item["external_id"] in existing_ids:
                 continue
 
             publish_time = _parse_time(item.get("publish_time"))
@@ -87,7 +94,8 @@ def crawl_keyword_task(self, keyword_id: int):
                 )
 
             video = Video(
-                douyin_id=item["douyin_id"],
+                platform=item.get("platform", platform),
+                external_id=item["external_id"],
                 keyword_id=keyword_id,
                 title=item.get("title", ""),
                 author_name=item.get("author_name"),
@@ -108,13 +116,14 @@ def crawl_keyword_task(self, keyword_id: int):
 
         for video in saved_videos:
             raw_comments = asyncio.run(
-                client.get_comments(video.douyin_id, limit=50, sort_by="like")
+                client.get_comments(video.external_id, limit=50, sort_by="like")
             )
             for c in raw_comments:
                 db.add(
                     Comment(
                         video_id=video.id,
-                        douyin_comment_id=c.get("douyin_comment_id"),
+                        platform=c.get("platform", platform),
+                        external_comment_id=c.get("external_comment_id"),
                         author_name=c.get("author_name"),
                         content=c.get("content", ""),
                         like_count=c.get("like_count", 0),
@@ -167,34 +176,27 @@ def crawl_video_comments(self, video_id: int):
         if not video:
             return {"status": "error", "message": f"Video {video_id} not found"}
 
-        # Why: 通过 video.keyword 路由到对应平台 client,而不是硬编码 douyin
-        keyword = (
-            db.query(Keyword).filter(Keyword.id == video.keyword_id).first()
-            if video.keyword_id
-            else None
-        )
-        if keyword is not None:
-            client = _get_client_for_keyword(keyword)
-        else:
-            client = get_client("douyin")
+        # Why: platform 直接从 video 取,video 上已经存了归属平台
+        client = _get_client_for_platform(video.platform)
         raw_comments = asyncio.run(
-            client.get_comments(video.douyin_id, limit=50, sort_by="like")
+            client.get_comments(video.external_id, limit=50, sort_by="like")
         )
 
         existing_ids = {
-            c.douyin_comment_id
+            c.external_comment_id
             for c in db.query(Comment).filter(Comment.video_id == video_id).all()
         }
 
         new_count = 0
         for c in raw_comments:
-            cid = c.get("douyin_comment_id")
+            cid = c.get("external_comment_id")
             if cid in existing_ids:
                 continue
             db.add(
                 Comment(
                     video_id=video_id,
-                    douyin_comment_id=cid,
+                    platform=c.get("platform", video.platform),
+                    external_comment_id=cid,
                     author_name=c.get("author_name"),
                     content=c.get("content", ""),
                     like_count=c.get("like_count", 0),
@@ -219,7 +221,11 @@ def crawl_video_comments(self, video_id: int):
     queue="crawler",
 )
 def crawl_all_keywords():
-    """定时派发所有 active 关键词的爬取任务(按 priority 降序)"""
+    """定时派发所有 active 关键词的爬取任务(按 priority 降序)
+
+    Phase 1 下默认按 'douyin' 派发。Phase 2 扩展时可按 keyword 关联的平台集合
+    派发多任务,或由调度配置显式指定目标平台。
+    """
     db = SessionLocal()
     try:
         keywords = (
@@ -229,7 +235,7 @@ def crawl_all_keywords():
             .all()
         )
         for kw in keywords:
-            crawl_keyword_task.delay(kw.id)
+            crawl_keyword_task.delay(kw.id, "douyin")
         return {"status": "success", "dispatched": len(keywords)}
     finally:
         db.close()

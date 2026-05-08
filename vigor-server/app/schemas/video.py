@@ -10,7 +10,8 @@ class VideoResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    douyin_id: str
+    external_id: str
+    platform: str = "douyin"
     title: str
     author_name: Optional[str] = None
     cover_url: Optional[str] = None

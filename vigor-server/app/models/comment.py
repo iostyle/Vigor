@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -6,10 +6,18 @@ from app.database import Base
 
 class Comment(Base):
     __tablename__ = "comments"
+    __table_args__ = (
+        UniqueConstraint(
+            "platform",
+            "external_comment_id",
+            name="uq_comments_platform_external_comment_id",
+        ),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     video_id = Column(Integer, ForeignKey("videos.id"), index=True)
-    douyin_comment_id = Column(String(100), unique=True)
+    platform = Column(String(16), nullable=False, server_default="douyin", index=True)
+    external_comment_id = Column(String(100))
     author_name = Column(String(255))
     content = Column(Text, nullable=False)
     like_count = Column(Integer, default=0)

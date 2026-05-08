@@ -1,16 +1,11 @@
 """平台 client 抽象契约 + 工厂
 
-Phase 1 先抽最小 Protocol 接口,方便后续新增平台(B 站、小红书等)时
-统一注入 Celery task / updater。字段名保留历史兼容(`douyin_id` /
-`douyin_comment_id`),Phase 2 再统一重命名为 `external_id` /
-`external_comment_id`。
-
-各平台 client 的返回字典约定(兼容字段):
-- 视频: douyin_id, title, author_name, author_id, cover_url, video_url,
+各平台 client 的返回字典约定(统一字段):
+- 视频: external_id, title, author_name, author_id, cover_url, video_url,
         like_count, comment_count, share_count, publish_time
-- 评论: douyin_comment_id, author_name, content, like_count, publish_time
+- 评论: external_comment_id, author_name, content, like_count, publish_time
 
-工厂部分根据 `keyword.platform` 分发到具体 client 实现。
+工厂部分根据显式传入的 platform 参数分发到具体 client 实现。
 """
 from __future__ import annotations
 

@@ -30,7 +30,7 @@ async def test_search_videos_returns_list(client):
 async def test_search_videos_item_structure(client):
     videos = await client.search_videos("科技", limit=3, min_heat=0)
     expected_keys = {
-        "douyin_id",
+        "external_id",
         "title",
         "author_name",
         "author_id",
@@ -58,7 +58,7 @@ async def test_search_videos_with_comments(client):
         assert "comments" in v
         assert len(v["comments"]) == 3
         for c in v["comments"]:
-            assert {"douyin_comment_id", "author_name", "content", "like_count", "publish_time"}.issubset(c.keys())
+            assert {"external_comment_id", "author_name", "content", "like_count", "publish_time"}.issubset(c.keys())
 
 
 @pytest.mark.asyncio
@@ -72,7 +72,7 @@ async def test_get_comments_mock(client):
 @pytest.mark.asyncio
 async def test_get_video_detail_mock(client):
     detail = await client.get_video_detail("av999")
-    assert detail["douyin_id"] == "av999"
+    assert detail["external_id"] == "av999"
     assert "title" in detail
 
 
@@ -90,7 +90,7 @@ def test_normalize_bili_item_maps_fields():
         "create_time": 1_700_000_000,
     }
     norm = BilibiliClient._normalize_bili_item(raw)
-    assert norm["douyin_id"] == "av123"
+    assert norm["external_id"] == "av123"
     assert norm["like_count"] == 1000
     assert norm["comment_count"] == 50
     assert norm["share_count"] == 20
@@ -108,7 +108,7 @@ def test_normalize_bili_comment_handles_string_content():
         "create_time": 1_700_000_001,
     }
     norm = BilibiliClient._normalize_bili_comment(raw)
-    assert norm["douyin_comment_id"] == "r1"
+    assert norm["external_comment_id"] == "r1"
     assert norm["content"] == "纯文本评论"
     assert norm["like_count"] == 3456
 

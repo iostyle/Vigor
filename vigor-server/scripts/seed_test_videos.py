@@ -3,7 +3,7 @@
 用法:
     poetry run python scripts/seed_test_videos.py
 
-幂等:通过 douyin_id 去重,重复执行不会插入重复数据
+幂等:通过 external_id 去重,重复执行不会插入重复数据
 """
 from __future__ import annotations
 
@@ -194,9 +194,9 @@ def seed() -> None:
                 print(f"跳过: 关键词 '{seed_data['keyword']}' 不存在")
                 continue
 
-            douyin_id = f"seed_finance_{idx:03d}"
+            external_id = f"seed_finance_{idx:03d}"
 
-            existing = db.scalar(select(Video).where(Video.douyin_id == douyin_id))
+            existing = db.scalar(select(Video).where(Video.external_id == external_id))
             if existing is not None:
                 continue
 
@@ -204,7 +204,8 @@ def seed() -> None:
             publish = now - timedelta(days=seed_data["days_ago"], hours=random.randint(0, 23))
 
             video = Video(
-                douyin_id=douyin_id,
+                platform="douyin",
+                external_id=external_id,
                 keyword_id=keyword.id,
                 title=seed_data["title"],
                 author_name=seed_data["author"],
@@ -247,7 +248,8 @@ def seed() -> None:
                 db.add(
                     Comment(
                         video_id=video.id,
-                        douyin_comment_id=f"{douyin_id}_c{ci}",
+                        platform="douyin",
+                        external_comment_id=f"{external_id}_c{ci}",
                         author_name=name,
                         content=content,
                         like_count=likes,

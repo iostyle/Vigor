@@ -56,7 +56,7 @@ def test_video_model_structure():
 
     columns = Video.__table__.columns
     assert "id" in columns
-    assert "douyin_id" in columns
+    assert "external_id" in columns
     assert "keyword_id" in columns
     assert "title" in columns
     assert "author_name" in columns
@@ -68,8 +68,8 @@ def test_video_model_structure():
 
     # 验证主键和唯一约束
     assert columns["id"].primary_key is True
-    assert columns["douyin_id"].unique is True
-    assert columns["douyin_id"].nullable is False
+    assert columns["external_id"].unique is True
+    assert columns["external_id"].nullable is False
     assert columns["title"].nullable is False
 
 
@@ -80,7 +80,7 @@ def test_comment_model_structure():
     columns = Comment.__table__.columns
     assert "id" in columns
     assert "video_id" in columns
-    assert "douyin_comment_id" in columns
+    assert "external_comment_id" in columns
     assert "author_name" in columns
     assert "content" in columns
     assert "like_count" in columns

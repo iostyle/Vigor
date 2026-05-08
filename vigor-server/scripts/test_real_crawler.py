@@ -58,7 +58,7 @@ async def stage1(client) -> None:
     print(f"\n成功获取 {len(videos)} 条视频,耗时 {elapsed:.1f}s")
     for i, v in enumerate(videos, 1):
         print(f"\n[{i}] {v.get('title', '')[:70]}")
-        print(f"    douyin_id: {v.get('douyin_id')}")
+        print(f"    external_id: {v.get('external_id')}")
         print(f"    作者: {v.get('author_name')}  |  点赞: {v.get('like_count')}  |  评论: {v.get('comment_count')}  |  分享: {v.get('share_count')}")
         print(f"    cover_url: {v.get('cover_url', '')[:80]}")
         print(f"    发布时间: {v.get('publish_time')}")

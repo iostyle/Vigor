@@ -21,6 +21,7 @@ router = APIRouter(
 
 class CrawlTriggerRequest(BaseModel):
     keyword_id: int
+    platform: str = "douyin"
 
 
 class UpdateTriggerRequest(BaseModel):
@@ -70,7 +71,7 @@ def trigger_crawl(
     db.commit()
     db.refresh(task)
 
-    celery_task_id = _enqueue_celery_task("crawl_keyword", payload.keyword_id)
+    celery_task_id = _enqueue_celery_task("crawl_keyword", payload.keyword_id, payload.platform)
 
     return TaskTriggerResponse(
         task_id=task.id,

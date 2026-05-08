@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 
 from app.celery_app import celery_app
 from app.database import SessionLocal
-from app.models.keyword import Keyword
 from app.models.video import Video
 from app.services.heat_calculator import calculate_heat_score
 from app.services.platform_client import get_client
@@ -44,19 +43,15 @@ def update_videos_task(self):
         client_cache: dict[str, object] = {}
 
         for video in due_videos:
-            kw = (
-                db.query(Keyword).filter(Keyword.id == video.keyword_id).first()
-                if video.keyword_id
-                else None
-            )
-            platform = (getattr(kw, "platform", None) or "douyin").lower()
+            # platform 直接从 video 取,keywords 不再持有 platform 属性
+            platform = (video.platform or "douyin").lower()
             client = client_cache.get(platform)
             if client is None:
                 client = get_client(platform)
                 client_cache[platform] = client
 
             old_comment_count = video.comment_count or 0
-            detail = asyncio.run(client.get_video_detail(video.douyin_id))
+            detail = asyncio.run(client.get_video_detail(video.external_id))
 
             video.like_count = detail.get("like_count", 0)
             video.comment_count = detail.get("comment_count", 0)

@@ -8,8 +8,7 @@
 - 评论归一化字段源:`comment_id`、`content`(string,不是 dict)、
   `nickname`、`like_count`、`create_time`、`video_id`
 
-对外返回的字段名保持和 DouyinClient 一致(`douyin_id` / `douyin_comment_id`
-等),方便 Phase 1 不改 DB schema 和 updater。Phase 2 再统一为 external_id。
+对外返回统一字段名:`external_id` / `external_comment_id`。
 """
 from __future__ import annotations
 
@@ -110,8 +109,8 @@ class BilibiliClient:
         publish_time = datetime.now(timezone.utc) - timedelta(minutes=offset_minutes)
         vid = f"bili_mock_{keyword}_{index:04d}"
         return {
-            # Phase 1 兼容:字段名仍叫 douyin_id(= external_id)
-            "douyin_id": vid,
+            # Phase 1 兼容:字段名仍叫 external_id(= external_id)
+            "external_id": vid,
             "title": f"【B站】{keyword} 热门视频 #{index}",
             "author_name": f"UP主_{rng.randint(1, 9999):04d}",
             "author_id": f"mid_{rng.randint(1, 99999):05d}",
@@ -128,7 +127,7 @@ class BilibiliClient:
         offset = rng.randint(0, 30 * 24 * 60)
         publish_time = datetime.now(timezone.utc) - timedelta(minutes=offset)
         return {
-            "douyin_comment_id": f"{video_id}_c{index:05d}",
+            "external_comment_id": f"{video_id}_c{index:05d}",
             "author_name": f"用户_{rng.randint(1, 99999):05d}",
             "content": f"【B站弹幕风】评论 #{index},就是玩儿",
             "like_count": rng.randint(0, 50_000),
@@ -165,7 +164,7 @@ class BilibiliClient:
             if include_comments:
                 for v in results:
                     v["comments"] = [
-                        self._mock_comment(v["douyin_id"], i)
+                        self._mock_comment(v["external_id"], i)
                         for i in range(comments_per_video)
                     ]
             return results
@@ -186,7 +185,7 @@ class BilibiliClient:
             offset = rng.randint(0, 30 * 24 * 60)
             publish_time = datetime.now(timezone.utc) - timedelta(minutes=offset)
             return {
-                "douyin_id": video_id,
+                "external_id": video_id,
                 "title": f"【B站】Mock 视频详情 {video_id}",
                 "author_name": f"UP主_{rng.randint(1, 9999):04d}",
                 "author_id": f"mid_{rng.randint(1, 99999):05d}",
@@ -327,7 +326,7 @@ class BilibiliClient:
                         comments_by_video.setdefault(vid, []).append(normalized)
 
             for v in videos:
-                v["comments"] = comments_by_video.get(v["douyin_id"], [])[:comments_per_video]
+                v["comments"] = comments_by_video.get(v["external_id"], [])[:comments_per_video]
 
         return videos
 
@@ -442,7 +441,7 @@ class BilibiliClient:
         publish_time = cls._timestamp_to_iso(raw.get("create_time") or raw.get("publish_time"))
 
         return {
-            "douyin_id": video_id,
+            "external_id": video_id,
             "title": title,
             "author_name": author_name,
             "author_id": author_id,
@@ -469,7 +468,7 @@ class BilibiliClient:
         publish_time = cls._timestamp_to_iso(raw.get("create_time") or raw.get("ctime"))
 
         return {
-            "douyin_comment_id": comment_id,
+            "external_comment_id": comment_id,
             "author_name": nickname,
             "content": content,
             "like_count": like,

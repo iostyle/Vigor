@@ -112,7 +112,6 @@ def keyword():
     return Keyword(
         id=1,
         keyword="美食",
-        category="food",
         status="active",
         crawl_threshold=1000,
         priority=5,
@@ -124,7 +123,7 @@ def sample_videos():
     now = datetime.now(timezone.utc)
     return [
         {
-            "douyin_id": "v_001",
+            "external_id": "v_001",
             "title": "美食视频 1",
             "author_name": "厨师 A",
             "author_id": "a_001",
@@ -136,7 +135,7 @@ def sample_videos():
             "publish_time": (now - timedelta(hours=3)).isoformat(),
         },
         {
-            "douyin_id": "v_002",
+            "external_id": "v_002",
             "title": "美食视频 2",
             "author_name": "厨师 B",
             "author_id": "a_002",
@@ -155,14 +154,14 @@ def sample_comments():
     now = datetime.now(timezone.utc)
     return [
         {
-            "douyin_comment_id": "c_001",
+            "external_comment_id": "c_001",
             "author_name": "用户 1",
             "content": "太香了",
             "like_count": 88,
             "publish_time": (now - timedelta(hours=1)).isoformat(),
         },
         {
-            "douyin_comment_id": "c_002",
+            "external_comment_id": "c_002",
             "author_name": "用户 2",
             "content": "学到了",
             "like_count": 55,
@@ -179,7 +178,7 @@ def test_crawl_keyword_task_success(
     processor_calls: list[int] = []
 
     monkeypatch.setattr(crawler, "SessionLocal", lambda: session)
-    monkeypatch.setattr(crawler, "_get_douyin_client", lambda: client)
+    monkeypatch.setattr(crawler, "_get_client_for_platform", lambda platform: client)
     monkeypatch.setattr(
         crawler.generate_summary_task, "delay", lambda vid: processor_calls.append(vid)
     )
@@ -192,7 +191,7 @@ def test_crawl_keyword_task_success(
 
     videos_added = [o for o in session.added if isinstance(o, Video)]
     assert len(videos_added) == 2
-    v1 = next(v for v in videos_added if v.douyin_id == "v_001")
+    v1 = next(v for v in videos_added if v.external_id == "v_001")
     assert v1.keyword_id == 1
     assert v1.like_count == 5000
     assert v1.heat_score is not None and v1.heat_score > 0
@@ -216,7 +215,7 @@ def test_crawl_keyword_task_keyword_not_found(monkeypatch):
     session = FakeSession(keyword=None, keywords=[])
     client = FakeDouyinClient()
     monkeypatch.setattr(crawler, "SessionLocal", lambda: session)
-    monkeypatch.setattr(crawler, "_get_douyin_client", lambda: client)
+    monkeypatch.setattr(crawler, "_get_client_for_platform", lambda platform: client)
     monkeypatch.setattr(crawler.generate_summary_task, "delay", lambda vid: None)
 
     result = crawler.crawl_keyword_task.run(999)
@@ -230,20 +229,20 @@ def test_crawl_keyword_task_skips_duplicate_videos(
     monkeypatch, keyword, sample_videos, sample_comments
 ):
     existing = Video(
-        id=7, douyin_id="v_001", keyword_id=1, title="旧标题", like_count=0
+        id=7, external_id="v_001", keyword_id=1, title="旧标题", like_count=0
     )
     session = FakeSession(keyword=keyword, existing_videos=[existing])
     client = FakeDouyinClient(videos=sample_videos, comments=sample_comments)
 
     monkeypatch.setattr(crawler, "SessionLocal", lambda: session)
-    monkeypatch.setattr(crawler, "_get_douyin_client", lambda: client)
+    monkeypatch.setattr(crawler, "_get_client_for_platform", lambda platform: client)
     monkeypatch.setattr(crawler.generate_summary_task, "delay", lambda vid: None)
 
     result = crawler.crawl_keyword_task.run(1)
 
     added_videos = [o for o in session.added if isinstance(o, Video)]
     assert len(added_videos) == 1
-    assert added_videos[0].douyin_id == "v_002"
+    assert added_videos[0].external_id == "v_002"
     assert result["videos_crawled"] == 1
 
 
@@ -256,9 +255,9 @@ def test_crawl_keyword_task_inactive_keyword(monkeypatch):
         priority=5,
     )
     session = FakeSession(keyword=keyword)
-    client = FakeDouyinClient(videos=[{"douyin_id": "ignored"}])
+    client = FakeDouyinClient(videos=[{"external_id": "ignored"}])
     monkeypatch.setattr(crawler, "SessionLocal", lambda: session)
-    monkeypatch.setattr(crawler, "_get_douyin_client", lambda: client)
+    monkeypatch.setattr(crawler, "_get_client_for_platform", lambda platform: client)
     monkeypatch.setattr(crawler.generate_summary_task, "delay", lambda vid: None)
 
     result = crawler.crawl_keyword_task.run(2)
@@ -277,7 +276,7 @@ def test_crawl_all_keywords_dispatches(monkeypatch):
     monkeypatch.setattr(crawler, "SessionLocal", lambda: session)
     dispatched: list[int] = []
     monkeypatch.setattr(
-        crawler.crawl_keyword_task, "delay", lambda kid: dispatched.append(kid)
+        crawler.crawl_keyword_task, "delay", lambda kid, platform="douyin": dispatched.append(kid)
     )
 
     result = crawler.crawl_all_keywords.run()

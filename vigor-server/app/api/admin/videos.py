@@ -53,7 +53,7 @@ def _build_video_response(video: Video, summary: Optional[CommentSummary]) -> Vi
     return VideoResponse.model_validate(
         {
             "id": video.id,
-            "douyin_id": video.douyin_id,
+            "external_id": video.external_id,
             "title": video.title,
             "author_name": video.author_name,
             "like_count": video.like_count or 0,
