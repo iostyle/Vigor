@@ -36,6 +36,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.services.douyin_client import DouyinClient
+from app.services.bilibili_client import BilibiliClient
 
 
 KEYWORDS_STAGE2 = ["股票", "基金", "纳斯达克", "标普", "炒股", "股市"]
@@ -43,7 +44,7 @@ VIDEOS_PER_KEYWORD = 10
 COMMENTS_PER_VIDEO = 20
 
 
-async def stage1(client: DouyinClient) -> None:
+async def stage1(client) -> None:
     print("=" * 60)
     print("Stage 1: 管道验证 - keyword=股票, limit=5, 不爬评论")
     print("=" * 60)
@@ -69,7 +70,7 @@ async def stage1(client: DouyinClient) -> None:
         print("\n✗ Stage 1 失败:没拿到视频。检查登录、代理、MediaCrawler 日志")
 
 
-async def stage2(client: DouyinClient) -> None:
+async def stage2(client) -> None:
     print("=" * 60)
     print(f"Stage 2: 完整范围 - {len(KEYWORDS_STAGE2)} 关键词 × {VIDEOS_PER_KEYWORD} 视频 × {COMMENTS_PER_VIDEO} 评论")
     print(f"关键词: {', '.join(KEYWORDS_STAGE2)}")
@@ -136,16 +137,25 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description="真实 MediaCrawler 集成验证")
     parser.add_argument("--stage", type=int, choices=[1, 2], default=1,
                         help="1=管道验证(快),2=完整爬取(慢)")
+    parser.add_argument("--platform", type=str, choices=["dy", "bili"], default="dy",
+                        help="目标平台,dy=抖音 / bili=B 站")
     args = parser.parse_args()
 
     # 代理改为可选:环境变量没设就不传
     http_proxy = os.getenv("HTTP_PROXY") or os.getenv("HTTPS_PROXY")
 
-    client = DouyinClient(
-        api_key="test-key",
-        mock_mode=False,
-        http_proxy=http_proxy,
-    )
+    if args.platform == "bili":
+        client = BilibiliClient(
+            mock_mode=False,
+            http_proxy=http_proxy,
+        )
+    else:
+        client = DouyinClient(
+            api_key="test-key",
+            mock_mode=False,
+            http_proxy=http_proxy,
+        )
+    print(f"平台: {args.platform}")
     print(f"MediaCrawler 路径: {client.media_crawler_path}")
     print(f"Python 解释器: {client.python_executable}")
     if http_proxy:
