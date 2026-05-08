@@ -16,32 +16,39 @@ const router = createRouter({
     },
     {
       path: '/admin',
-      redirect: '/admin/dashboard',
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/admin/dashboard',
-      name: 'admin-dashboard',
-      component: () => import('@/views/admin/DashboardPage.vue'),
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/admin/keywords',
-      name: 'admin-keywords',
-      component: () => import('@/views/admin/KeywordsPage.vue'),
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/admin/videos',
-      name: 'admin-videos',
-      component: () => import('@/views/admin/VideosPage.vue'),
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/admin/tasks',
-      name: 'admin-tasks',
-      component: () => import('@/views/admin/TasksPage.vue'),
-      meta: { requiresAuth: true }
+      component: () => import('@/layouts/AdminLayout.vue'),
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: '',
+          redirect: '/admin/dashboard'
+        },
+        {
+          path: 'dashboard',
+          name: 'admin-dashboard',
+          component: () => import('@/views/admin/DashboardPage.vue')
+        },
+        {
+          path: 'categories',
+          name: 'admin-categories',
+          component: () => import('@/views/admin/CategoriesPage.vue')
+        },
+        {
+          path: 'keywords',
+          name: 'admin-keywords',
+          component: () => import('@/views/admin/KeywordsPage.vue')
+        },
+        {
+          path: 'videos',
+          name: 'admin-videos',
+          component: () => import('@/views/admin/VideosPage.vue')
+        },
+        {
+          path: 'tasks',
+          name: 'admin-tasks',
+          component: () => import('@/views/admin/TasksPage.vue')
+        }
+      ]
     }
   ]
 })

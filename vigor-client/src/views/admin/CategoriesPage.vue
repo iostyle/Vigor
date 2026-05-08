@@ -1,25 +1,13 @@
 <template>
-  <div class="keywords-page">
+  <div class="categories-page">
     <div class="page-header">
-      <h1>关键词管理</h1>
+      <h1>领域管理</h1>
       <button class="btn-primary" @click="showCreateDialog = true">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
           <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
         </svg>
-        新增关键词
+        新增领域
       </button>
-    </div>
-
-    <div class="filter-bar">
-      <div class="filter-group">
-        <label>领域筛选:</label>
-        <select v-model="selectedCategoryId" @change="fetchKeywords" class="filter-select">
-          <option :value="null">全部</option>
-          <option v-for="cat in categories" :key="cat.id" :value="cat.id">
-            {{ cat.name }}
-          </option>
-        </select>
-      </div>
     </div>
 
     <div class="table-container">
@@ -27,26 +15,28 @@
         <thead>
           <tr>
             <th>ID</th>
-            <th>领域名</th>
-            <th>关键词</th>
+            <th>名称</th>
+            <th>图标</th>
+            <th>描述</th>
+            <th>关键词数</th>
+            <th>排序</th>
             <th>状态</th>
-            <th>优先级</th>
-            <th>爬取阈值</th>
             <th>操作</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in keywords" :key="item.id">
+          <tr v-for="item in categories" :key="item.id">
             <td>{{ item.id }}</td>
-            <td class="name-cell">{{ getCategoryName(item.category_id) }}</td>
-            <td class="keyword-cell">{{ item.keyword }}</td>
+            <td class="name-cell">{{ item.name }}</td>
+            <td class="icon-cell">{{ item.icon || '-' }}</td>
+            <td class="desc-cell">{{ item.description || '-' }}</td>
+            <td>{{ item.keyword_count }}</td>
+            <td>{{ item.sort_order }}</td>
             <td>
               <span class="status-badge" :class="item.status">
-                {{ getStatusText(item.status) }}
+                {{ item.status === 'active' ? '启用' : '禁用' }}
               </span>
             </td>
-            <td>{{ item.priority }}</td>
-            <td>{{ item.crawl_threshold }}</td>
             <td class="actions-cell">
               <button class="btn-icon" @click="handleEdit(item)">编辑</button>
               <button class="btn-icon danger" @click="handleDelete(item)">删除</button>
@@ -60,37 +50,31 @@
     <div v-if="showCreateDialog || showEditDialog" class="dialog-overlay" @click.self="closeDialogs">
       <div class="dialog">
         <div class="dialog-header">
-          <h2>{{ showCreateDialog ? '新增关键词' : '编辑关键词' }}</h2>
+          <h2>{{ showCreateDialog ? '新增领域' : '编辑领域' }}</h2>
           <button class="close-btn" @click="closeDialogs">×</button>
         </div>
         <div class="dialog-body">
           <div class="form-group">
-            <label>领域 *</label>
-            <select v-model="formData.category_id" class="input" required>
-              <option :value="null" disabled>请选择领域</option>
-              <option v-for="cat in categories" :key="cat.id" :value="cat.id">
-                {{ cat.name }}
-              </option>
-            </select>
+            <label>名称 *</label>
+            <input v-model="formData.name" class="input" placeholder="如:财经" />
           </div>
           <div class="form-group">
-            <label>关键词 *</label>
-            <input v-model="formData.keyword" class="input" placeholder="如:财经新闻" required />
+            <label>图标</label>
+            <input v-model="formData.icon" class="input" placeholder="如:💰" />
           </div>
           <div class="form-group">
-            <label>优先级 (1-10)</label>
-            <input v-model.number="formData.priority" type="number" min="1" max="10" class="input" />
+            <label>描述</label>
+            <textarea v-model="formData.description" class="input" rows="3" placeholder="领域描述"></textarea>
           </div>
           <div class="form-group">
-            <label>爬取阈值</label>
-            <input v-model.number="formData.crawl_threshold" type="number" min="0" class="input" />
+            <label>排序</label>
+            <input v-model.number="formData.sort_order" type="number" class="input" />
           </div>
           <div class="form-group">
             <label>状态</label>
             <select v-model="formData.status" class="input">
               <option value="active">启用</option>
-              <option value="paused">暂停</option>
-              <option value="archived">归档</option>
+              <option value="inactive">禁用</option>
             </select>
           </div>
         </div>
@@ -105,22 +89,18 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { keywordApi } from '@/api/keyword'
-import { categoryApi, type Category } from '@/api/category'
-import type { Keyword, KeywordCreateInput, KeywordUpdateInput } from '@/types/keyword'
+import { categoryApi, type Category, type CategoryCreateInput, type CategoryUpdateInput } from '@/api/category'
 
-const keywords = ref<Keyword[]>([])
 const categories = ref<Category[]>([])
-const selectedCategoryId = ref<number | null>(null)
 const showCreateDialog = ref(false)
 const showEditDialog = ref(false)
 const editingId = ref<number | null>(null)
 
-const formData = ref<KeywordCreateInput & { status?: 'active' | 'paused' | 'archived' }>({
-  category_id: null as any,
-  keyword: '',
-  priority: 5,
-  crawl_threshold: 100,
+const formData = ref<CategoryCreateInput & { status?: 'active' | 'inactive' }>({
+  name: '',
+  description: '',
+  icon: '',
+  sort_order: 0,
   status: 'active'
 })
 
@@ -128,69 +108,46 @@ async function fetchCategories() {
   try {
     categories.value = await categoryApi.adminList()
   } catch (error) {
-    alert('加载领域失败:' + error)
+    alert('加载失败:' + error)
   }
 }
 
-async function fetchKeywords() {
-  try {
-    const params = selectedCategoryId.value ? { category_id: selectedCategoryId.value } : {}
-    keywords.value = await keywordApi.list(params)
-  } catch (error) {
-    alert('加载关键词失败:' + error)
-  }
-}
-
-function getCategoryName(categoryId: number): string {
-  const cat = categories.value.find(c => c.id === categoryId)
-  return cat ? cat.name : '-'
-}
-
-function getStatusText(status: string): string {
-  const map: Record<string, string> = {
-    active: '启用',
-    paused: '暂停',
-    archived: '归档'
-  }
-  return map[status] || status
-}
-
-function handleEdit(item: Keyword) {
+function handleEdit(item: Category) {
   editingId.value = item.id
   formData.value = {
-    category_id: item.category_id,
-    keyword: item.keyword,
-    priority: item.priority,
-    crawl_threshold: item.crawl_threshold,
-    status: item.status
+    name: item.name,
+    description: item.description || '',
+    icon: item.icon || '',
+    sort_order: item.sort_order,
+    status: item.status as 'active' | 'inactive'
   }
   showEditDialog.value = true
 }
 
-async function handleDelete(item: Keyword) {
-  if (!confirm(`确定删除关键词"${item.keyword}"吗?`)) return
+async function handleDelete(item: Category) {
+  if (!confirm(`确定删除领域"${item.name}"吗?`)) return
   try {
-    await keywordApi.delete(item.id)
-    await fetchKeywords()
+    await categoryApi.delete(item.id)
+    await fetchCategories()
   } catch (error: any) {
     alert('删除失败:' + (error.message || error))
   }
 }
 
 async function handleSubmit() {
-  if (!formData.value.category_id || !formData.value.keyword) {
-    alert('请填写必填项')
+  if (!formData.value.name) {
+    alert('请输入名称')
     return
   }
 
   try {
     if (showCreateDialog.value) {
-      await keywordApi.create(formData.value)
+      await categoryApi.create(formData.value)
     } else if (editingId.value) {
-      const updateData: KeywordUpdateInput = { ...formData.value }
-      await keywordApi.update(editingId.value, updateData)
+      const updateData: CategoryUpdateInput = { ...formData.value }
+      await categoryApi.update(editingId.value, updateData)
     }
-    await fetchKeywords()
+    await fetchCategories()
     closeDialogs()
   } catch (error: any) {
     alert('操作失败:' + (error.message || error))
@@ -202,22 +159,21 @@ function closeDialogs() {
   showEditDialog.value = false
   editingId.value = null
   formData.value = {
-    category_id: null as any,
-    keyword: '',
-    priority: 5,
-    crawl_threshold: 100,
+    name: '',
+    description: '',
+    icon: '',
+    sort_order: 0,
     status: 'active'
   }
 }
 
 onMounted(() => {
   fetchCategories()
-  fetchKeywords()
 })
 </script>
 
 <style scoped>
-.keywords-page {
+.categories-page {
   max-width: 1200px;
 }
 
@@ -225,43 +181,13 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
 }
 
 .page-header h1 {
   font-size: 24px;
   font-weight: 600;
   color: var(--text-primary);
-}
-
-.filter-bar {
-  margin-bottom: var(--spacing-lg);
-  padding: var(--spacing-md);
-  background-color: var(--bg-primary);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
-}
-
-.filter-group {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-}
-
-.filter-group label {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
-.filter-select {
-  padding: 8px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 14px;
-  cursor: pointer;
 }
 
 .btn-primary {
@@ -343,9 +269,16 @@ onMounted(() => {
   font-weight: 500;
 }
 
-.keyword-cell {
-  font-weight: 500;
-  color: var(--primary-color);
+.icon-cell {
+  font-size: 20px;
+}
+
+.desc-cell {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
 }
 
 .status-badge {
@@ -361,12 +294,7 @@ onMounted(() => {
   color: var(--success-color);
 }
 
-.status-badge.paused {
-  background-color: rgba(255, 149, 0, 0.1);
-  color: #ff9500;
-}
-
-.status-badge.archived {
+.status-badge.inactive {
   background-color: var(--bg-tertiary);
   color: var(--text-tertiary);
 }
@@ -483,6 +411,11 @@ onMounted(() => {
   outline: none;
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+}
+
+textarea.input {
+  resize: vertical;
+  font-family: inherit;
 }
 
 .dialog-footer {
