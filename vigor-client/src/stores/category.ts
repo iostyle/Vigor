@@ -17,9 +17,20 @@ const DEFAULT_CATEGORIES: Category[] = [
   }
 ]
 
+const STORAGE_KEY = 'vigor:home:activeCategoryId'
+
+function loadActiveCategoryId(): number | null {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored ? Number(stored) : DEFAULT_CATEGORIES[0].id
+  } catch {
+    return DEFAULT_CATEGORIES[0].id
+  }
+}
+
 export const useCategoryStore = defineStore('category', () => {
   const categories = ref<Category[]>(DEFAULT_CATEGORIES)
-  const activeCategoryId = ref<number | null>(DEFAULT_CATEGORIES[0].id)
+  const activeCategoryId = ref<number | null>(loadActiveCategoryId())
   const loading = ref(false)
   const isUsingDefaults = ref(true)
 
@@ -43,6 +54,11 @@ export const useCategoryStore = defineStore('category', () => {
 
   function setActiveCategory(id: number) {
     activeCategoryId.value = id
+    try {
+      localStorage.setItem(STORAGE_KEY, String(id))
+    } catch {
+      // localStorage 不可用时静默失败
+    }
   }
 
   return {

@@ -54,6 +54,9 @@ const props = defineProps<{
   videos: Video[]
   loading: boolean
   selectedId: number | null
+  initialPlatform?: string | null
+  initialSortBy?: 'heat_score' | 'publish_time'
+  initialTimeWindow?: '1d' | '3d' | '7d' | '15d' | '30d' | null
 }>()
 
 const emit = defineEmits<{
@@ -63,9 +66,9 @@ const emit = defineEmits<{
   (e: 'change-platform', platform: string | null): void
 }>()
 
-const sortBy = ref<'heat_score' | 'publish_time'>('heat_score')
-const timeWindow = ref<string>('')
-const platform = ref<string>('')
+const sortBy = ref<'heat_score' | 'publish_time'>(props.initialSortBy || 'heat_score')
+const timeWindow = ref<string>(props.initialTimeWindow || '')
+const platform = ref<string>(props.initialPlatform || '')
 
 function handleSelect(id: number) {
   emit('select', id)

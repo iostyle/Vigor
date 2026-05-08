@@ -3,15 +3,42 @@ import { ref } from 'vue'
 import type { Video, VideoListParams } from '@/types/video'
 import { videoApi } from '@/api/video'
 
+const STORAGE_KEYS = {
+  platform: 'vigor:home:platform',
+  sortBy: 'vigor:home:sortBy',
+  timeWindow: 'vigor:home:timeWindow'
+}
+
+function loadFromStorage<T>(key: string, defaultValue: T): T {
+  try {
+    const stored = localStorage.getItem(key)
+    return stored ? (JSON.parse(stored) as T) : defaultValue
+  } catch {
+    return defaultValue
+  }
+}
+
+function saveToStorage(key: string, value: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    // localStorage 不可用时静默失败
+  }
+}
+
 export const useVideoStore = defineStore('video', () => {
   const videos = ref<Video[]>([])
   const selectedVideo = ref<Video | null>(null)
   const total = ref(0)
   const loading = ref(false)
   const currentCategoryId = ref<number | null>(null)
-  const currentPlatform = ref<string | null>(null)
-  const sortBy = ref<'heat_score' | 'publish_time'>('heat_score')
-  const timeWindow = ref<'1d' | '3d' | '7d' | '15d' | '30d' | null>(null)
+  const currentPlatform = ref<string | null>(loadFromStorage(STORAGE_KEYS.platform, null))
+  const sortBy = ref<'heat_score' | 'publish_time'>(
+    loadFromStorage(STORAGE_KEYS.sortBy, 'heat_score')
+  )
+  const timeWindow = ref<'1d' | '3d' | '7d' | '15d' | '30d' | null>(
+    loadFromStorage(STORAGE_KEYS.timeWindow, null)
+  )
 
   async function fetchVideos(params?: VideoListParams) {
     loading.value = true
@@ -60,16 +87,19 @@ export const useVideoStore = defineStore('video', () => {
 
   function setSortBy(sort: 'heat_score' | 'publish_time') {
     sortBy.value = sort
+    saveToStorage(STORAGE_KEYS.sortBy, sort)
     fetchVideos()
   }
 
   function setTimeWindow(window: '1d' | '3d' | '7d' | '15d' | '30d' | null) {
     timeWindow.value = window
+    saveToStorage(STORAGE_KEYS.timeWindow, window)
     fetchVideos()
   }
 
   function setPlatform(platform: string | null) {
     currentPlatform.value = platform
+    saveToStorage(STORAGE_KEYS.platform, platform)
     fetchVideos()
   }
 
