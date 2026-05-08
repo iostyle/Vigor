@@ -29,6 +29,7 @@ _TIME_WINDOW_DAYS = {"1d": 1, "3d": 3, "7d": 7, "15d": 15, "30d": 30}
 def list_videos(
     keyword_id: Optional[int] = Query(None),
     category_id: Optional[int] = Query(None),
+    platform: Optional[str] = Query(None, max_length=16),
     time_window: Optional[TimeWindow] = Query(None),
     sort: SortField = Query("heat_score"),
     limit: int = Query(20, ge=1, le=100),
@@ -44,6 +45,9 @@ def list_videos(
         query = query.join(Keyword, Video.keyword_id == Keyword.id).filter(
             Keyword.category_id == category_id
         )
+
+    if platform is not None:
+        query = query.filter(Video.platform == platform)
 
     if time_window is not None:
         cutoff = datetime.utcnow() - timedelta(days=_TIME_WINDOW_DAYS[time_window])
