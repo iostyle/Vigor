@@ -192,7 +192,7 @@ def seed() -> None:
                 title=seed_data["title"],
                 author_name=seed_data["author"],
                 author_id=f"author_{idx:03d}",
-                cover_url=f"https://picsum.photos/seed/vigor-{idx}/640/360",
+                cover_url=f"https://dummyimage.com/640x360/3498db/fff&text=Vigor+{idx}",
                 video_url=None,
                 like_count=seed_data["like"],
                 comment_count=seed_data["comment"],
