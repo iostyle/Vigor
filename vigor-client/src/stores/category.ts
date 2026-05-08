@@ -4,16 +4,22 @@ import type { Category } from '@/api/category'
 import { categoryApi } from '@/api/category'
 
 const DEFAULT_CATEGORIES: Category[] = [
-  { category: '财经', keyword_count: 0 },
-  { category: '科技', keyword_count: 0 },
-  { category: '美食', keyword_count: 0 },
-  { category: '教育', keyword_count: 0 },
-  { category: '娱乐', keyword_count: 0 }
+  {
+    id: -1,
+    name: '财经',
+    description: null,
+    icon: null,
+    sort_order: 0,
+    status: 'active',
+    keyword_count: 0,
+    created_at: null,
+    updated_at: null
+  }
 ]
 
 export const useCategoryStore = defineStore('category', () => {
   const categories = ref<Category[]>(DEFAULT_CATEGORIES)
-  const activeCategory = ref<string | null>(DEFAULT_CATEGORIES[0].category)
+  const activeCategoryId = ref<number | null>(DEFAULT_CATEGORIES[0].id)
   const loading = ref(false)
   const isUsingDefaults = ref(true)
 
@@ -24,8 +30,8 @@ export const useCategoryStore = defineStore('category', () => {
       if (result && result.length > 0) {
         categories.value = result
         isUsingDefaults.value = false
-        if (!result.find((c) => c.category === activeCategory.value)) {
-          activeCategory.value = result[0].category
+        if (!result.find((c) => c.id === activeCategoryId.value)) {
+          activeCategoryId.value = result[0].id
         }
       }
     } catch (error) {
@@ -35,13 +41,13 @@ export const useCategoryStore = defineStore('category', () => {
     }
   }
 
-  function setActiveCategory(category: string) {
-    activeCategory.value = category
+  function setActiveCategory(id: number) {
+    activeCategoryId.value = id
   }
 
   return {
     categories,
-    activeCategory,
+    activeCategoryId,
     loading,
     isUsingDefaults,
     fetchCategories,

@@ -10,12 +10,13 @@
     <div class="nav-center">
       <button
         v-for="item in categories"
-        :key="item.category"
+        :key="item.id"
         class="category-btn"
-        :class="{ active: item.category === activeCategory }"
-        @click="handleCategoryClick(item.category)"
+        :class="{ active: item.id === activeCategoryId }"
+        @click="handleCategoryClick(item.id)"
       >
-        {{ item.category }}
+        <span v-if="item.icon" class="category-icon">{{ item.icon }}</span>
+        {{ item.name }}
       </button>
     </div>
 
@@ -42,17 +43,17 @@ import type { Category } from '@/api/category'
 
 defineProps<{
   categories: Category[]
-  activeCategory: string | null
+  activeCategoryId: number | null
 }>()
 
 const emit = defineEmits<{
-  (e: 'change-category', category: string): void
+  (e: 'change-category', id: number): void
 }>()
 
 const themeStore = useThemeStore()
 
-function handleCategoryClick(category: string) {
-  emit('change-category', category)
+function handleCategoryClick(id: number) {
+  emit('change-category', id)
 }
 </script>
 
@@ -126,6 +127,13 @@ function handleCategoryClick(category: string) {
   cursor: pointer;
   white-space: nowrap;
   transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.category-icon {
+  font-size: 16px;
 }
 
 .category-btn:hover {

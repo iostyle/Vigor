@@ -2,7 +2,7 @@
   <div class="home-page">
     <TopNavBar
       :categories="categoryStore.categories"
-      :active-category="categoryStore.activeCategory"
+      :active-category-id="categoryStore.activeCategoryId"
       @change-category="handleCategoryChange"
     />
 
@@ -48,9 +48,9 @@ function checkMobile() {
   isMobile.value = window.innerWidth < 768
 }
 
-function handleCategoryChange(category: string) {
-  categoryStore.setActiveCategory(category)
-  videoStore.setCategory(category)
+function handleCategoryChange(id: number) {
+  categoryStore.setActiveCategory(id)
+  videoStore.setCategoryId(id)
 }
 
 function handleVideoSelect(id: number) {
@@ -73,8 +73,8 @@ onMounted(async () => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
   await categoryStore.fetchCategories()
-  if (categoryStore.activeCategory) {
-    videoStore.setCategory(categoryStore.activeCategory)
+  if (categoryStore.activeCategoryId) {
+    videoStore.setCategoryId(categoryStore.activeCategoryId)
   }
 })
 

@@ -1,9 +1,13 @@
+from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryResponse
 from app.schemas.keyword import KeywordCreate, KeywordUpdate, KeywordResponse
 from app.schemas.video import VideoResponse, VideoListResponse
 from app.schemas.comment import CommentResponse, CommentSummaryResponse
 from app.schemas.task import CrawlTaskResponse
 
 __all__ = [
+    "CategoryCreate",
+    "CategoryUpdate",
+    "CategoryResponse",
     "KeywordCreate",
     "KeywordUpdate",
     "KeywordResponse",

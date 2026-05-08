@@ -8,7 +8,7 @@ export const useVideoStore = defineStore('video', () => {
   const selectedVideo = ref<Video | null>(null)
   const total = ref(0)
   const loading = ref(false)
-  const currentCategory = ref<string | null>(null)
+  const currentCategoryId = ref<number | null>(null)
   const sortBy = ref<'heat_score' | 'publish_time'>('heat_score')
   const timeWindow = ref<'1d' | '3d' | '7d' | '15d' | '30d' | null>(null)
 
@@ -16,7 +16,10 @@ export const useVideoStore = defineStore('video', () => {
     loading.value = true
     try {
       const finalParams: VideoListParams = {
-        category: currentCategory.value || undefined,
+        category_id:
+          currentCategoryId.value && currentCategoryId.value > 0
+            ? currentCategoryId.value
+            : undefined,
         time_window: timeWindow.value || undefined,
         sort: sortBy.value,
         limit: 20,
@@ -47,8 +50,8 @@ export const useVideoStore = defineStore('video', () => {
     }
   }
 
-  function setCategory(category: string | null) {
-    currentCategory.value = category
+  function setCategoryId(id: number | null) {
+    currentCategoryId.value = id
     selectedVideo.value = null
     fetchVideos()
   }
@@ -68,12 +71,12 @@ export const useVideoStore = defineStore('video', () => {
     selectedVideo,
     total,
     loading,
-    currentCategory,
+    currentCategoryId,
     sortBy,
     timeWindow,
     fetchVideos,
     selectVideo,
-    setCategory,
+    setCategoryId,
     setSortBy,
     setTimeWindow
   }
