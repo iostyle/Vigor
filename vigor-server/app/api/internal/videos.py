@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, verify_api_key
-from app.models import Comment, CommentSummary, Video
+from app.models import Comment, CommentSummary, Keyword, Video
 from app.schemas import (
     CommentResponse,
     CommentSummaryResponse,
@@ -28,6 +28,7 @@ _TIME_WINDOW_DAYS = {"1d": 1, "3d": 3, "7d": 7, "15d": 15, "30d": 30}
 @router.get("", response_model=VideoListResponse)
 def list_videos(
     keyword_id: Optional[int] = Query(None),
+    category: Optional[str] = Query(None),
     time_window: Optional[TimeWindow] = Query(None),
     sort: SortField = Query("heat_score"),
     limit: int = Query(20, ge=1, le=100),
@@ -38,6 +39,11 @@ def list_videos(
 
     if keyword_id is not None:
         query = query.filter(Video.keyword_id == keyword_id)
+
+    if category is not None:
+        query = query.join(Keyword, Video.keyword_id == Keyword.id).filter(
+            Keyword.category == category
+        )
 
     if time_window is not None:
         cutoff = datetime.utcnow() - timedelta(days=_TIME_WINDOW_DAYS[time_window])

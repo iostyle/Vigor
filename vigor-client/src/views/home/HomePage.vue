@@ -1,13 +1,12 @@
 <template>
   <div class="home-page">
     <TopNavBar
-      :keywords="keywordStore.keywords"
-      :active-keyword-id="keywordStore.activeKeywordId"
-      @change-keyword="handleKeywordChange"
+      :categories="categoryStore.categories"
+      :active-category="categoryStore.activeCategory"
+      @change-category="handleCategoryChange"
     />
 
     <div class="main-content" :class="{ 'mobile-detail': isMobile && videoStore.selectedVideo }">
-      <!-- 视频列表 -->
       <div class="list-panel">
         <VideoList
           :videos="videoStore.videos"
@@ -19,7 +18,6 @@
         />
       </div>
 
-      <!-- 数据看板 -->
       <div class="dashboard-panel">
         <div v-if="isMobile && videoStore.selectedVideo" class="mobile-back" @click="handleBack">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
@@ -34,14 +32,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, onUnmounted, watch } from 'vue'
-import { useKeywordStore } from '@/stores/keyword'
+import { onMounted, ref, onUnmounted } from 'vue'
+import { useCategoryStore } from '@/stores/category'
 import { useVideoStore } from '@/stores/video'
 import TopNavBar from '@/components/common/TopNavBar.vue'
 import VideoList from '@/components/video/VideoList.vue'
 import DataDashboard from '@/components/dashboard/DataDashboard.vue'
 
-const keywordStore = useKeywordStore()
+const categoryStore = useCategoryStore()
 const videoStore = useVideoStore()
 
 const isMobile = ref(false)
@@ -50,10 +48,9 @@ function checkMobile() {
   isMobile.value = window.innerWidth < 768
 }
 
-function handleKeywordChange(id: number) {
-  keywordStore.setActiveKeyword(id)
-  videoStore.setKeyword(id)
-  videoStore.selectedVideo = null
+function handleCategoryChange(category: string) {
+  categoryStore.setActiveCategory(category)
+  videoStore.setCategory(category)
 }
 
 function handleVideoSelect(id: number) {
@@ -72,19 +69,13 @@ function handleBack() {
   videoStore.selectedVideo = null
 }
 
-watch(
-  () => keywordStore.activeKeywordId,
-  (newId) => {
-    if (newId !== null) {
-      videoStore.setKeyword(newId)
-    }
-  }
-)
-
 onMounted(async () => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
-  await keywordStore.fetchKeywords()
+  await categoryStore.fetchCategories()
+  if (categoryStore.activeCategory) {
+    videoStore.setCategory(categoryStore.activeCategory)
+  }
 })
 
 onUnmounted(() => {

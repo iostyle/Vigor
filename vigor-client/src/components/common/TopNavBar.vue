@@ -9,18 +9,22 @@
 
     <div class="nav-center">
       <button
-        v-for="keyword in keywords"
-        :key="keyword.id"
-        class="keyword-btn"
-        :class="{ active: keyword.id === activeKeywordId }"
-        @click="handleKeywordClick(keyword.id)"
+        v-for="item in categories"
+        :key="item.category"
+        class="category-btn"
+        :class="{ active: item.category === activeCategory }"
+        @click="handleCategoryClick(item.category)"
       >
-        {{ keyword.keyword }}
+        {{ item.category }}
       </button>
     </div>
 
     <div class="nav-right">
-      <button class="theme-toggle" :title="themeStore.mode === 'light' ? '切换到深色' : '切换到浅色'" @click="themeStore.toggleTheme">
+      <button
+        class="theme-toggle"
+        :title="themeStore.mode === 'light' ? '切换到深色' : '切换到浅色'"
+        @click="themeStore.toggleTheme"
+      >
         <svg v-if="themeStore.mode === 'light'" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
           <path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z" />
         </svg>
@@ -34,21 +38,21 @@
 
 <script setup lang="ts">
 import { useThemeStore } from '@/stores/theme'
-import type { Keyword } from '@/types/keyword'
+import type { Category } from '@/api/category'
 
 defineProps<{
-  keywords: Keyword[]
-  activeKeywordId: number | null
+  categories: Category[]
+  activeCategory: string | null
 }>()
 
 const emit = defineEmits<{
-  (e: 'change-keyword', id: number): void
+  (e: 'change-category', category: string): void
 }>()
 
 const themeStore = useThemeStore()
 
-function handleKeywordClick(id: number) {
-  emit('change-keyword', id)
+function handleCategoryClick(category: string) {
+  emit('change-category', category)
 }
 </script>
 
@@ -111,7 +115,7 @@ function handleKeywordClick(id: number) {
   color: var(--text-primary);
 }
 
-.keyword-btn {
+.category-btn {
   padding: 6px 16px;
   border: none;
   background: transparent;
@@ -124,12 +128,12 @@ function handleKeywordClick(id: number) {
   transition: all var(--transition-fast);
 }
 
-.keyword-btn:hover {
+.category-btn:hover {
   background-color: var(--bg-secondary);
   color: var(--text-primary);
 }
 
-.keyword-btn.active {
+.category-btn.active {
   background-color: var(--primary-color);
   color: white;
 }

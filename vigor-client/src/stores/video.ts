@@ -8,15 +8,15 @@ export const useVideoStore = defineStore('video', () => {
   const selectedVideo = ref<Video | null>(null)
   const total = ref(0)
   const loading = ref(false)
-  const currentKeywordId = ref<number | null>(null)
+  const currentCategory = ref<string | null>(null)
   const sortBy = ref<'heat_score' | 'publish_time'>('heat_score')
   const timeWindow = ref<'1d' | '3d' | '7d' | '15d' | '30d' | null>(null)
 
   async function fetchVideos(params?: VideoListParams) {
     loading.value = true
     try {
-      const finalParams = {
-        keyword_id: currentKeywordId.value && currentKeywordId.value > 0 ? currentKeywordId.value : undefined,
+      const finalParams: VideoListParams = {
+        category: currentCategory.value || undefined,
         time_window: timeWindow.value || undefined,
         sort: sortBy.value,
         limit: 20,
@@ -47,8 +47,9 @@ export const useVideoStore = defineStore('video', () => {
     }
   }
 
-  function setKeyword(keywordId: number | null) {
-    currentKeywordId.value = keywordId
+  function setCategory(category: string | null) {
+    currentCategory.value = category
+    selectedVideo.value = null
     fetchVideos()
   }
 
@@ -67,12 +68,12 @@ export const useVideoStore = defineStore('video', () => {
     selectedVideo,
     total,
     loading,
-    currentKeywordId,
+    currentCategory,
     sortBy,
     timeWindow,
     fetchVideos,
     selectVideo,
-    setKeyword,
+    setCategory,
     setSortBy,
     setTimeWindow
   }

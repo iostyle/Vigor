@@ -34,6 +34,7 @@ export interface Comment {
 
 export interface VideoListParams {
   keyword_id?: number
+  category?: string
   time_window?: '1d' | '3d' | '7d' | '15d' | '30d'
   sort?: 'heat_score' | 'publish_time'
   limit?: number
