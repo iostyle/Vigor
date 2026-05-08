@@ -138,13 +138,20 @@ async def main() -> None:
                         help="1=管道验证(快),2=完整爬取(慢)")
     args = parser.parse_args()
 
+    # 代理改为可选:环境变量没设就不传
+    http_proxy = os.getenv("HTTP_PROXY") or os.getenv("HTTPS_PROXY")
+
     client = DouyinClient(
         api_key="test-key",
         mock_mode=False,
-        http_proxy="http://127.0.0.1:7890",
+        http_proxy=http_proxy,
     )
     print(f"MediaCrawler 路径: {client.media_crawler_path}")
-    print(f"HTTP 代理: {client.http_proxy}")
+    print(f"Python 解释器: {client.python_executable}")
+    if http_proxy:
+        print(f"HTTP 代理: {http_proxy}")
+    else:
+        print("HTTP 代理: <未设置>")
 
     if args.stage == 1:
         await stage1(client)

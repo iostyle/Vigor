@@ -45,7 +45,12 @@ class DouyinClient:
             or os.getenv("MEDIA_CRAWLER_PATH")
             or str(Path(__file__).resolve().parents[2] / "vendor_MediaCrawler")
         )
-        self.http_proxy = http_proxy or os.getenv("HTTP_PROXY") or "http://127.0.0.1:7890"
+        # 代理改为可选:环境变量没设就不传
+        self.http_proxy = http_proxy or os.getenv("HTTP_PROXY") or os.getenv("HTTPS_PROXY")
+
+        # 优先用 vendor_MediaCrawler 的 .venv python,否则 fallback sys.executable
+        mc_venv_python = Path(self.media_crawler_path) / ".venv" / "bin" / "python"
+        self.python_executable = str(mc_venv_python) if mc_venv_python.exists() else sys.executable
 
     @staticmethod
     def _heat(like: int, comment: int, share: int) -> int:
@@ -160,7 +165,7 @@ class DouyinClient:
         effective_limit = max(limit, 10)
 
         cmd = [
-            sys.executable,
+            self.python_executable,
             "main.py",
             "--platform", "dy",
             "--keywords", keyword,
@@ -384,7 +389,7 @@ class DouyinClient:
             env["HTTPS_PROXY"] = self.http_proxy
 
         cmd = [
-            sys.executable,
+            self.python_executable,
             "main.py",
             "--platform", "dy",
             "--type", "detail",
