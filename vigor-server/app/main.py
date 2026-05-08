@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 from fastapi import FastAPI, Response
+from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.api.admin.categories import router as admin_categories_router
@@ -23,6 +24,15 @@ app = FastAPI(
     description="Vigor 数据采集与分析平台服务端",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# CORS 中间件配置
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
