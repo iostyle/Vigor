@@ -17,6 +17,23 @@ from app.database import SessionLocal
 from app.models import Category, Comment, CommentSummary, Keyword, Video
 
 
+# Google 公开测试视频 URL(稳定可访问,CORS 友好)
+SAMPLE_VIDEO_URLS = [
+    "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+    "https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+    "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+    "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+    "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+    "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+    "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
+    "https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
+    "https://storage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
+    "https://storage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
+    "https://storage.googleapis.com/gtv-videos-bucket/sample/VolkswagenGTIReview.mp4",
+    "https://storage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4",
+]
+
+
 # 12 条视频:每条指定关键词名称、标题、作者、三个互动指标
 VIDEO_SEEDS: list[dict] = [
     {
@@ -193,7 +210,7 @@ def seed() -> None:
                 author_name=seed_data["author"],
                 author_id=f"author_{idx:03d}",
                 cover_url=f"https://dummyimage.com/640x360/3498db/fff&text=Vigor+{idx}",
-                video_url=None,
+                video_url=SAMPLE_VIDEO_URLS[idx % len(SAMPLE_VIDEO_URLS)],
                 like_count=seed_data["like"],
                 comment_count=seed_data["comment"],
                 share_count=seed_data["share"],
