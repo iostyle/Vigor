@@ -173,9 +173,11 @@ class TestListTasks:
         response = client.get("/api/admin/tasks")
         assert response.status_code == 200
         body = response.json()
-        assert len(body) == 2
-        assert body[0]["task_type"] == "update"
-        assert body[1]["task_type"] == "crawl"
+        # 新合约:返回 {total, data}
+        assert body["total"] == 2
+        assert len(body["data"]) == 2
+        assert body["data"][0]["task_type"] == "update"
+        assert body["data"][1]["task_type"] == "crawl"
 
     def test_pagination(self, client):
         kw = _create_keyword(client.session)
@@ -193,8 +195,12 @@ class TestListTasks:
 
         response = client.get("/api/admin/tasks?page=1&page_size=2")
         assert response.status_code == 200
-        assert len(response.json()) == 2
+        body = response.json()
+        assert body["total"] == 5
+        assert len(body["data"]) == 2
 
         response = client.get("/api/admin/tasks?page=3&page_size=2")
         assert response.status_code == 200
-        assert len(response.json()) == 1
+        body = response.json()
+        assert body["total"] == 5
+        assert len(body["data"]) == 1

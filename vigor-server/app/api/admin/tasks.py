@@ -346,12 +346,19 @@ def trigger_update_by_category(
     )
 
 
-@router.get("", response_model=list[CrawlTaskResponse])
+class CrawlTaskListResponse(BaseModel):
+    """任务历史分页响应:total 给前端正确分页,data 是当前页。"""
+    total: int
+    data: list[CrawlTaskResponse]
+
+
+@router.get("", response_model=CrawlTaskListResponse)
 def list_tasks(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-) -> list[CrawlTaskResponse]:
+) -> CrawlTaskListResponse:
+    total = db.query(CrawlTask).count()
     offset = (page - 1) * page_size
     tasks = (
         db.query(CrawlTask)
@@ -360,4 +367,7 @@ def list_tasks(
         .limit(page_size)
         .all()
     )
-    return [CrawlTaskResponse.model_validate(t) for t in tasks]
+    return CrawlTaskListResponse(
+        total=total,
+        data=[CrawlTaskResponse.model_validate(t) for t in tasks],
+    )
