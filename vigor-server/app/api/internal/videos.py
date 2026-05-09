@@ -58,10 +58,25 @@ def list_videos(
     sort_col = Video.heat_score if sort == "heat_score" else Video.publish_time
     rows = query.order_by(sort_col.desc().nullslast()).offset(offset).limit(limit).all()
 
-    return VideoListResponse(
-        total=total,
-        data=[VideoResponse.model_validate(v) for v in rows],
-    )
+    # Why: 一次 IN 把本页所有 CommentSummary 取回,避免 N+1
+    summary_map: dict[int, CommentSummary] = {}
+    if rows:
+        summary_rows = (
+            db.query(CommentSummary)
+            .filter(CommentSummary.video_id.in_([v.id for v in rows]))
+            .all()
+        )
+        summary_map = {s.video_id: s for s in summary_rows}
+
+    data: list[VideoResponse] = []
+    for v in rows:
+        resp = VideoResponse.model_validate(v)
+        s = summary_map.get(v.id)
+        if s is not None:
+            resp = _apply_summary_row(resp, s)
+        data.append(resp)
+
+    return VideoListResponse(total=total, data=data)
 
 
 def _get_video_or_404(db: Session, video_id: int) -> Video:
@@ -73,21 +88,14 @@ def _get_video_or_404(db: Session, video_id: int) -> Video:
     return video
 
 
-def _attach_comment_summary(
-    db: Session, video: Video, response: VideoResponse
+def _apply_summary_row(
+    response: VideoResponse, summary_row: CommentSummary
 ) -> VideoResponse:
-    """把 CommentSummary outerjoin 上来并填到 response.comment_summary。
+    """把一条 CommentSummary 行填到 VideoResponse.comment_summary。
 
-    CommentSummary.top_keywords 在 DB 里是 JSON 字符串,这里 json.loads 成 list。
+    top_keywords 在 DB 里是 JSON 字符串,这里 json.loads 成 list;
+    兼容历史数据:逗号分隔的旧字符串也能解析。
     """
-    summary_row = (
-        db.query(CommentSummary)
-        .filter(CommentSummary.video_id == video.id)
-        .first()
-    )
-    if summary_row is None:
-        return response
-
     top_keywords: list[str] = []
     if summary_row.top_keywords:
         import json
@@ -97,7 +105,6 @@ def _attach_comment_summary(
             if isinstance(parsed, list):
                 top_keywords = [str(item) for item in parsed]
         except (ValueError, TypeError):
-            # 兼容旧数据:逗号分隔字符串
             top_keywords = [
                 s.strip() for s in summary_row.top_keywords.split(",") if s.strip()
             ]
@@ -110,6 +117,20 @@ def _attach_comment_summary(
         comment_count=summary_row.comment_count or 0,
     )
     return response
+
+
+def _attach_comment_summary(
+    db: Session, video: Video, response: VideoResponse
+) -> VideoResponse:
+    """单条视频:查 CommentSummary 并挂到 response。"""
+    summary_row = (
+        db.query(CommentSummary)
+        .filter(CommentSummary.video_id == video.id)
+        .first()
+    )
+    if summary_row is None:
+        return response
+    return _apply_summary_row(response, summary_row)
 
 
 @router.get("/{video_id}", response_model=VideoResponse)
