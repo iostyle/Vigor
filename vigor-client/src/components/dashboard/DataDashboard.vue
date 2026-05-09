@@ -160,6 +160,17 @@
             </div>
           </div>
         </div>
+        <div v-else-if="video.comment_count > 0" class="generate-summary">
+          <p class="hint">该视频有 {{ video.comment_count }} 条评论,可点击生成 AI 评论摘要</p>
+          <button
+            type="button"
+            class="generate-btn"
+            :disabled="generating"
+            @click="handleGenerateSummary"
+          >
+            {{ generating ? '生成中...' : '生成评论摘要' }}
+          </button>
+        </div>
         <div v-else class="no-data">
           <p>暂无评论摘要</p>
         </div>
@@ -215,14 +226,40 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { useMessage } from 'naive-ui'
 import type { Video } from '@/types/video'
+import { videoApi } from '@/api/video'
 import { formatNumber, formatDate, formatHeatScore, formatSentiment } from '@/utils/format'
 import { normalizeCover } from '@/utils/media'
+
+const message = useMessage()
 
 const props = defineProps<{
   video: Video | null
 }>()
+
+const emit = defineEmits<{
+  (e: 'refresh'): void
+}>()
+
+const generating = ref(false)
+
+async function handleGenerateSummary() {
+  if (!props.video?.id) return
+  generating.value = true
+  try {
+    await videoApi.generateSummary(props.video.id)
+    message.success('摘要生成中,10 秒后自动刷新')
+    setTimeout(() => {
+      emit('refresh')
+      generating.value = false
+    }, 10000)
+  } catch (error: any) {
+    message.error(error.message || '生成摘要失败')
+    generating.value = false
+  }
+}
 
 const originalUrl = computed(() => {
   if (!props.video) return '#'
@@ -593,6 +630,43 @@ const sentimentInfo = computed(() =>
 .no-data {
   color: var(--text-tertiary);
   font-size: 13px;
+}
+
+.generate-summary {
+  padding: var(--spacing-lg);
+  background-color: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+}
+
+.generate-summary .hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.generate-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 122, 255, 0.18);
+  background: linear-gradient(180deg, #2997ff 0%, #007aff 100%);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+.generate-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.generate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .ai-analysis {

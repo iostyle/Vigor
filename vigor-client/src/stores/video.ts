@@ -79,6 +79,16 @@ export const useVideoStore = defineStore('video', () => {
     }
   }
 
+  // 重新拉取当前选中视频的详情(用于摘要生成后刷新等场景)
+  async function fetchVideoDetail(videoId: number) {
+    try {
+      const video = await videoApi.getSummary(videoId)
+      selectedVideo.value = video
+    } catch (error) {
+      console.error('Failed to refresh video detail:', error)
+    }
+  }
+
   function setCategoryId(id: number | null) {
     currentCategoryId.value = id
     selectedVideo.value = null
@@ -114,6 +124,7 @@ export const useVideoStore = defineStore('video', () => {
     timeWindow,
     fetchVideos,
     selectVideo,
+    fetchVideoDetail,
     setCategoryId,
     setSortBy,
     setTimeWindow,

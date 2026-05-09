@@ -29,7 +29,7 @@
           </svg>
           <span>返回列表</span>
         </div>
-        <DataDashboard :video="videoStore.selectedVideo" />
+        <DataDashboard :video="videoStore.selectedVideo" @refresh="handleRefresh" />
       </div>
     </div>
   </div>
@@ -71,6 +71,12 @@ function handleTimeWindowChange(window: '1d' | '3d' | '7d' | '15d' | '30d' | nul
 
 function handlePlatformChange(platform: string | null) {
   videoStore.setPlatform(platform)
+}
+
+function handleRefresh() {
+  if (videoStore.selectedVideo?.id) {
+    videoStore.fetchVideoDetail(videoStore.selectedVideo.id)
+  }
 }
 
 function handleBack() {
