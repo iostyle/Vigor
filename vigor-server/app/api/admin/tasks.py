@@ -11,6 +11,7 @@ from app.models.task import CrawlTask
 from app.models.video import Video
 from app.schemas.task import CrawlTaskResponse
 from app.tasks.crawler import crawl_keyword_task
+from app.tasks.updater import update_selection_task
 
 router = APIRouter(
     prefix="/api/admin/tasks",
@@ -37,9 +38,12 @@ class TaskTriggerResponse(BaseModel):
 
 def _enqueue_celery_task(task_name: str, *args) -> str:
     # Why: 之前是占位字符串,worker 永远不会真跑;现在按 task_name 派发到对应 Celery task。
-    # update_videos 暂未实现,仍返回占位
     if task_name == "crawl_keyword":
         result = crawl_keyword_task.delay(*args)
+        return result.id
+    if task_name == "update_videos":
+        # args = (video_id, keyword_id, task_id)
+        result = update_selection_task.delay(*args)
         return result.id
     return f"celery-{task_name}-placeholder"
 
