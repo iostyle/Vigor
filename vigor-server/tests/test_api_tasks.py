@@ -112,10 +112,26 @@ class TestTriggerUpdate:
 
     def test_with_keyword_id(self, client):
         kw = _create_keyword(client.session)
+        # 新合约:keyword_id 模式按 publish_time 取最新 N 条 video,
+        # 每个 video 一行 task。需要先插 video 才能验响应。
+        _create_video(client.session, kw.id)
         response = client.post(
             "/api/admin/tasks/update", json={"keyword_id": kw.id}
         )
         assert response.status_code == 202
+        body = response.json()
+        assert body["keyword_id"] == kw.id
+        assert body["video_count"] == 1
+        assert len(body["task_ids"]) == 1
+        assert body["status"] == "pending"
+
+    def test_with_keyword_id_no_videos_returns_404(self, client):
+        # keyword 存在但没有视频 → 404,前端能给提示
+        kw = _create_keyword(client.session)
+        response = client.post(
+            "/api/admin/tasks/update", json={"keyword_id": kw.id}
+        )
+        assert response.status_code == 404
 
     def test_requires_at_least_one_id(self, client):
         response = client.post("/api/admin/tasks/update", json={})

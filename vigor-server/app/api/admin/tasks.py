@@ -1,8 +1,8 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, verify_api_key
@@ -42,6 +42,25 @@ class CrawlByCategoryResponse(BaseModel):
 class UpdateTriggerRequest(BaseModel):
     video_id: Optional[int] = None
     keyword_id: Optional[int] = None
+    # Why: 按 keyword 更新会越积越多视频,默认 20 条避免一次刷一两百条
+    # 把 worker 占满。video_id 模式忽略此参数(单条不需要)。
+    limit: int = Field(default=20, ge=1, le=500)
+
+
+class UpdateByCategoryRequest(BaseModel):
+    category_id: int
+    limit: int = Field(default=100, ge=1, le=1000)
+
+
+class BatchUpdateTriggerResponse(BaseModel):
+    """按 keyword / category 批量更新的响应:每个 video 一条 task 行。"""
+    keyword_id: Optional[int] = None
+    category_id: Optional[int] = None
+    video_count: int
+    limit: int
+    task_ids: list[int]
+    celery_task_ids: list[str]
+    status: str
 
 
 class TaskTriggerResponse(BaseModel):
@@ -162,56 +181,168 @@ def trigger_crawl_by_category(
     )
 
 
+def _bulk_dispatch_video_updates(
+    db: Session, videos: list[Video]
+) -> tuple[list[int], list[str]]:
+    """为每条 video 创建一行 CrawlTask(task_type='update'),并 .delay()
+    update_selection_task。先全部落库再统一派任务,避免 worker 抢先。
+
+    返回 (task_ids, celery_task_ids)。
+    """
+    task_rows: list[CrawlTask] = []
+    for v in videos:
+        t = CrawlTask(
+            keyword_id=v.keyword_id,
+            task_type="update",
+            status="pending",
+            videos_crawled=0,
+            started_at=datetime.utcnow(),
+        )
+        db.add(t)
+        task_rows.append(t)
+    db.commit()
+    for t in task_rows:
+        db.refresh(t)
+
+    task_ids: list[int] = []
+    celery_task_ids: list[str] = []
+    for v, t in zip(videos, task_rows):
+        cid = _enqueue_celery_task("update_videos", v.id, None, t.id)
+        task_ids.append(t.id)
+        celery_task_ids.append(cid)
+    return task_ids, celery_task_ids
+
+
 @router.post(
     "/update",
-    response_model=TaskTriggerResponse,
+    response_model=Union[TaskTriggerResponse, BatchUpdateTriggerResponse],
     status_code=status.HTTP_202_ACCEPTED,
 )
 def trigger_update(
     payload: UpdateTriggerRequest,
     db: Session = Depends(get_db),
-) -> TaskTriggerResponse:
+):
+    """触发数据更新。
+
+    - video_id 模式:单条 task,行为不变,响应仍是 TaskTriggerResponse
+    - keyword_id 模式:取该关键词下 publish_time 降序的最新 limit 条视频,
+      每条 video 一行 task + 一次 .delay,响应为 BatchUpdateTriggerResponse
+    """
     if payload.video_id is None and payload.keyword_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Either video_id or keyword_id must be provided",
         )
 
+    # ---- 单视频模式:保持既有 TaskTriggerResponse 形状 ----
     if payload.video_id is not None:
         video = db.query(Video).filter(Video.id == payload.video_id).first()
         if not video:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Video not found",
+                status_code=status.HTTP_404_NOT_FOUND, detail="Video not found"
             )
+        task = CrawlTask(
+            keyword_id=video.keyword_id,
+            task_type="update",
+            status="pending",
+            videos_crawled=0,
+            started_at=datetime.utcnow(),
+        )
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        celery_task_id = _enqueue_celery_task(
+            "update_videos", payload.video_id, None, task.id
+        )
+        return TaskTriggerResponse(
+            task_id=task.id,
+            celery_task_id=celery_task_id,
+            status=task.status,
+        )
 
-    if payload.keyword_id is not None:
-        keyword = db.query(Keyword).filter(Keyword.id == payload.keyword_id).first()
-        if not keyword:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Keyword not found",
-            )
+    # ---- 关键词模式:批量,每条 video 一行 task,limit 截断 ----
+    keyword = db.query(Keyword).filter(Keyword.id == payload.keyword_id).first()
+    if not keyword:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Keyword not found"
+        )
+    videos = (
+        db.query(Video)
+        .filter(Video.keyword_id == payload.keyword_id)
+        .order_by(Video.publish_time.desc().nullslast(), Video.id.desc())
+        .limit(payload.limit)
+        .all()
+    )
+    if not videos:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No videos found for this keyword",
+        )
 
-    task = CrawlTask(
+    task_ids, celery_task_ids = _bulk_dispatch_video_updates(db, videos)
+    return BatchUpdateTriggerResponse(
         keyword_id=payload.keyword_id,
-        task_type="update",
+        video_count=len(videos),
+        limit=payload.limit,
+        task_ids=task_ids,
+        celery_task_ids=celery_task_ids,
         status="pending",
-        videos_crawled=0,
-        started_at=datetime.utcnow(),
-    )
-    db.add(task)
-    db.commit()
-    db.refresh(task)
-
-    celery_task_id = _enqueue_celery_task(
-        "update_videos", payload.video_id, payload.keyword_id, task.id
     )
 
-    return TaskTriggerResponse(
-        task_id=task.id,
-        celery_task_id=celery_task_id,
-        status=task.status,
+
+@router.post(
+    "/update-by-category",
+    response_model=BatchUpdateTriggerResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def trigger_update_by_category(
+    payload: UpdateByCategoryRequest,
+    db: Session = Depends(get_db),
+) -> BatchUpdateTriggerResponse:
+    """按领域批量更新:取该领域下所有 active keyword 的 publish_time
+    降序最新 limit 条视频,每条一行 task + 一次 .delay。"""
+    category = db.query(Category).filter(Category.id == payload.category_id).first()
+    if category is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Category not found"
+        )
+
+    keyword_ids = [
+        row.id
+        for row in db.query(Keyword.id)
+        .filter(
+            Keyword.category_id == payload.category_id,
+            Keyword.status == "active",
+        )
+        .all()
+    ]
+    if not keyword_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active keywords in this category",
+        )
+
+    videos = (
+        db.query(Video)
+        .filter(Video.keyword_id.in_(keyword_ids))
+        .order_by(Video.publish_time.desc().nullslast(), Video.id.desc())
+        .limit(payload.limit)
+        .all()
+    )
+    if not videos:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No videos found in this category",
+        )
+
+    task_ids, celery_task_ids = _bulk_dispatch_video_updates(db, videos)
+    return BatchUpdateTriggerResponse(
+        category_id=payload.category_id,
+        video_count=len(videos),
+        limit=payload.limit,
+        task_ids=task_ids,
+        celery_task_ids=celery_task_ids,
+        status="pending",
     )
 
 
