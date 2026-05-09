@@ -35,6 +35,10 @@ def _refresh_videos(
 
     返回 (updated_count, comment_crawl_count)。
     评论数 >20% 增长会派发 crawl_video_comments 子任务。
+
+    单条视频遇到平台业务侧"不可见/不存在"(detail 返回 unavailable=True)
+    时跳过更新指标,只把 last_updated_at 推进,不计入 updated_count;
+    整批继续,不让一条下架视频拖垮整批。
     """
     updated_count = 0
     comment_crawl_count = 0
@@ -51,6 +55,12 @@ def _refresh_videos(
 
         old_comment_count = video.comment_count or 0
         detail = asyncio.run(client.get_video_detail(video.external_id))
+
+        if detail.get("unavailable"):
+            # 稿件已下架/不可见,跳过指标更新,但推进 last_updated_at
+            # 防止下次 beat 又把它选进来无限重试
+            video.last_updated_at = now
+            continue
 
         video.like_count = detail.get("like_count", 0)
         video.comment_count = detail.get("comment_count", 0)

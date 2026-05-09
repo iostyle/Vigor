@@ -236,11 +236,20 @@ class BilibiliClient:
 
         return await self._fetch_real_video_detail(video_id)
 
+    # B 站业务侧"稿件不可访问"类错误码,这些不该让 Celery retry,
+    # 应当作单条跳过。常见值参考 B 站官方:
+    #   62002 稿件不可见
+    #   62004 稿件审核中
+    #   -404  视频不存在
+    UNAVAILABLE_CODES = {62002, 62004, -404}
+
     async def _fetch_real_video_detail(self, video_id: str) -> dict:
         """走 B 站 web 接口 /x/web-interface/view 拉视频详情(stat 字段)。
 
         external_id 兼容三种输入:BV 号 / 纯数字 aid / `av<num>`。
-        失败抛 RuntimeError,让 Celery retry 生效。
+        - 网络/超时/5xx → 抛 RuntimeError,让 Celery retry 生效
+        - 业务侧不可见(code in UNAVAILABLE_CODES)→ 返回 unavailable 标记字典,
+          调用方按"跳过该条但继续整批"处理
         """
         # Why: 老数据可能是 aid,需要先转 BV
         bvid = self._coerce_to_bvid(video_id)
@@ -267,11 +276,32 @@ class BilibiliClient:
                     resp.raise_for_status()
                     payload = resp.json()
         except httpx.HTTPError as exc:
+            # 网络/5xx 是瞬时错误,抛出让 Celery retry
             raise RuntimeError(
                 f"BilibiliClient.get_video_detail({video_id}) HTTP 失败: {exc}"
             ) from exc
 
-        if not isinstance(payload, dict) or payload.get("code") != 0:
+        if not isinstance(payload, dict):
+            raise RuntimeError(
+                f"BilibiliClient.get_video_detail({video_id}) 返回非 JSON 对象: "
+                f"{payload!r}"[:500]
+            )
+
+        code = payload.get("code")
+        if code in self.UNAVAILABLE_CODES:
+            # 业务侧已下架/不可见,不再 retry,告诉调用方跳过
+            msg = payload.get("message") or f"code={code}"
+            logger.warning(
+                "BilibiliClient.get_video_detail(%s) 稿件不可见: code=%s msg=%s",
+                video_id, code, msg,
+            )
+            return {
+                "external_id": bvid,
+                "unavailable": True,
+                "reason": f"code={code} {msg}",
+            }
+        if code != 0:
+            # 其它非 0 当作真错误抛出 retry
             raise RuntimeError(
                 f"BilibiliClient.get_video_detail({video_id}) 返回非 0 code: "
                 f"{payload!r}"[:500]
