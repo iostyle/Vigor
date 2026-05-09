@@ -242,7 +242,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onUnmounted } from 'vue'
 import { useMessage } from 'naive-ui'
 import type { Video } from '@/types/video'
 import { videoApi } from '@/api/video'
@@ -260,22 +260,57 @@ const emit = defineEmits<{
 }>()
 
 const generating = ref(false)
+let pollTimer: number | null = null
+
+function stopPolling() {
+  if (pollTimer !== null) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
 
 async function handleGenerateSummary() {
   if (!props.video?.id) return
   generating.value = true
+  // 重新生成场景:先停掉旧的 interval
+  stopPolling()
   try {
     await videoApi.generateSummary(props.video.id)
-    message.success('摘要生成中,10 秒后自动刷新')
-    setTimeout(() => {
-      emit('refresh')
-      generating.value = false
-    }, 10000)
+    message.success('摘要生成中,生成完成后会自动刷新')
+    pollForSummary(props.video.id)
   } catch (error: any) {
     message.error(error.message || '生成摘要失败')
     generating.value = false
   }
 }
+
+function pollForSummary(videoId: number) {
+  let attempts = 0
+  const maxAttempts = 24 // 最多 120s (24 * 5s)
+  pollTimer = window.setInterval(async () => {
+    attempts++
+    try {
+      const detail = await videoApi.getSummary(videoId)
+      if (detail.comment_summary) {
+        stopPolling()
+        generating.value = false
+        emit('refresh')
+        return
+      }
+    } catch {
+      // 网络错误不中断轮询,继续重试直到 maxAttempts
+    }
+    if (attempts >= maxAttempts) {
+      stopPolling()
+      generating.value = false
+      message.warning('生成时间较长,请稍后手动刷新')
+    }
+  }, 5000)
+}
+
+onUnmounted(() => {
+  stopPolling()
+})
 
 const originalUrl = computed(() => {
   if (!props.video) return '#'
