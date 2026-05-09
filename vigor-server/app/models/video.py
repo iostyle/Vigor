@@ -30,6 +30,7 @@ class Video(Base):
     heat_score = Column(Float)
     summary = Column(Text)
     summary_generated_at = Column(TIMESTAMP)
+    tags = Column(Text)
 
     keyword = relationship("Keyword", backref="videos")
     comments = relationship("Comment", back_populates="video", cascade="all, delete-orphan")

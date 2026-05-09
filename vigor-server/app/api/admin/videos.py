@@ -62,6 +62,7 @@ def _build_video_response(video: Video, summary: Optional[CommentSummary]) -> Vi
             "heat_score": video.heat_score,
             "publish_time": video.publish_time,
             "summary": video.summary,
+            "tags": video.tags,
             "comment_summary": comment_summary,
         }
     )

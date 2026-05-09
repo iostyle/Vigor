@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime
 
 from app.celery_app import celery_app
@@ -124,6 +125,7 @@ def crawl_keyword_task(self, keyword_id: int, platform: str = "douyin", task_id:
                 publish_time=publish_time,
                 heat_score=heat,
                 last_updated_at=datetime.utcnow(),
+                tags=json.dumps(item.get("tags") or [], ensure_ascii=False),
             )
             db.add(video)
             saved_videos.append(video)

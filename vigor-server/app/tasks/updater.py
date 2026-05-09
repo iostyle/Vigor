@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
@@ -72,6 +73,10 @@ def _refresh_videos(
             video.publish_time,
         )
         video.last_updated_at = now
+        # tags 也同步更新,detail 有就覆盖,没有就不动
+        detail_tags = detail.get("tags")
+        if detail_tags is not None:
+            video.tags = json.dumps(detail_tags or [], ensure_ascii=False)
         updated_count += 1
 
         if old_comment_count > 0 and video.comment_count > old_comment_count * 1.2:

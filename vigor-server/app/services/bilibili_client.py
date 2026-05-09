@@ -157,6 +157,7 @@ class BilibiliClient:
             "comment_count": comment,
             "share_count": share,
             "publish_time": publish_time.isoformat(),
+            "tags": [keyword, "热门", "推荐"],
         }
 
     def _mock_comment(self, video_id: str, index: int) -> dict:
@@ -232,6 +233,7 @@ class BilibiliClient:
                 "comment_count": comment,
                 "share_count": share,
                 "publish_time": publish_time.isoformat(),
+                "tags": ["科技", "评测", "测试"],
             }
 
         return await self._fetch_real_video_detail(video_id)
@@ -314,6 +316,11 @@ class BilibiliClient:
         # bvid 优先用接口返回的真实值,避免转换失误时还回错的
         out_bvid = data.get("bvid") or bvid
 
+        # B 站 API 详情里不直接带 tag 数组,需要另外打 /x/tag/archive/tags;
+        # 但 search 返回的视频 raw 里已经含有 tag 字段(MediaCrawler 归一化时给出),
+        # 所以这里只在真实 detail 时多打一次 tag 接口,失败不致命,空 list 兜底。
+        tags = await self._fetch_tags_safe(data.get("aid"), out_bvid)
+
         return {
             "external_id": out_bvid,
             "title": data.get("title") or "",
@@ -326,7 +333,51 @@ class BilibiliClient:
             "share_count": self._to_int(stat.get("share")),
             "view_count": self._to_int(stat.get("view")),
             "publish_time": self._timestamp_to_iso(data.get("pubdate")),
+            "tags": tags,
         }
+
+    async def _fetch_tags_safe(self, aid, bvid: str) -> list[str]:
+        """打 B 站 tag 接口取 tag_name 列表,失败返回 []。"""
+        params: dict[str, str] = {}
+        if aid:
+            params["aid"] = str(aid)
+        else:
+            params["bvid"] = bvid
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Referer": "https://www.bilibili.com/",
+            "Accept": "application/json, text/plain, */*",
+        }
+        proxy = self.http_proxy or None
+        try:
+            async with httpx.AsyncClient(
+                timeout=8.0, proxy=proxy, follow_redirects=True
+            ) as client:
+                resp = await client.get(
+                    "https://api.bilibili.com/x/tag/archive/tags",
+                    params=params,
+                    headers=headers,
+                )
+                resp.raise_for_status()
+                payload = resp.json()
+        except Exception as exc:
+            logger.warning("BilibiliClient tag fetch 失败 (aid=%s bvid=%s): %s", aid, bvid, exc)
+            return []
+
+        if not isinstance(payload, dict) or payload.get("code") != 0:
+            return []
+        items = payload.get("data") or []
+        if not isinstance(items, list):
+            return []
+        return [
+            str(t.get("tag_name"))
+            for t in items
+            if isinstance(t, dict) and t.get("tag_name")
+        ]
 
     @staticmethod
     def _coerce_to_bvid(value: str) -> str:
@@ -616,6 +667,15 @@ class BilibiliClient:
 
         publish_time = cls._timestamp_to_iso(raw.get("create_time") or raw.get("publish_time"))
 
+        # MediaCrawler 在 B 站 search 产物里的 tag 通常是逗号分隔字符串("tag":"tag1,tag2")
+        # 也兼容 list / None
+        raw_tag = raw.get("tag")
+        tags: list[str] = []
+        if isinstance(raw_tag, list):
+            tags = [str(t).strip() for t in raw_tag if str(t).strip()]
+        elif isinstance(raw_tag, str) and raw_tag:
+            tags = [t.strip() for t in raw_tag.split(",") if t.strip()]
+
         return {
             "external_id": bvid,
             "title": title,
@@ -627,6 +687,7 @@ class BilibiliClient:
             "comment_count": comment,
             "share_count": share,
             "publish_time": publish_time,
+            "tags": tags,
         }
 
     @classmethod
