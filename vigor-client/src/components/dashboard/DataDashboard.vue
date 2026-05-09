@@ -287,7 +287,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onUnmounted } from 'vue'
+import { computed, ref, watch, onUnmounted } from 'vue'
 import { useMessage } from 'naive-ui'
 import type { Video, Comment } from '@/types/video'
 import { videoApi } from '@/api/video'
@@ -379,6 +379,19 @@ function pollForSummary(videoId: number) {
 onUnmounted(() => {
   stopPolling()
 })
+
+// 切换视频时重置本地状态,避免残留上个视频的评论列表 / 摘要生成状态
+watch(
+  () => props.video?.id,
+  (newId, oldId) => {
+    if (newId === oldId) return
+    stopPolling()
+    comments.value = []
+    showComments.value = false
+    loadingComments.value = false
+    generating.value = false
+  }
+)
 
 const originalUrl = computed(() => {
   if (!props.video) return '#'
