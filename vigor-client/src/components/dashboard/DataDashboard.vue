@@ -160,13 +160,16 @@
             </div>
           </div>
           <div class="regenerate-summary">
+            <span class="generated-at">
+              生成于 {{ generatedAtText }}
+            </span>
             <button
               type="button"
               class="regenerate-btn"
               :disabled="generating"
               @click="handleGenerateSummary"
             >
-              {{ generating ? '生成中...' : '重新生成评论摘要' }}
+              {{ generating ? '生成中...' : '重新生成' }}
             </button>
           </div>
         </div>
@@ -280,6 +283,15 @@ const heatInfo = computed(() => formatHeatScore(props.video?.heat_score ?? null)
 const sentimentInfo = computed(() =>
   formatSentiment(props.video?.comment_summary?.sentiment || 'neutral')
 )
+
+// 评论摘要生成时间,格式:YYYY/MM/DD HH:mm
+const generatedAtText = computed(() => {
+  const raw = props.video?.comment_summary?.generated_at
+  if (!raw) return '-'
+  const d = new Date(raw)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+})
 </script>
 
 <style scoped>
@@ -683,6 +695,15 @@ const sentimentInfo = computed(() =>
   margin-top: var(--spacing-md);
   padding-top: var(--spacing-md);
   border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+}
+
+.generated-at {
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 
 .regenerate-btn {
