@@ -131,38 +131,6 @@
         </div>
       </section>
 
-      <!-- 互动数据图表 -->
-      <section class="section">
-        <h2 class="section-title">互动数据趋势</h2>
-        <div class="chart-placeholder">
-          <svg viewBox="0 0 400 200" class="mock-chart">
-            <polyline
-              points="0,150 40,140 80,120 120,130 160,100 200,90 240,80 280,60 320,50 360,40 400,30"
-              fill="none"
-              stroke="var(--primary-color)"
-              stroke-width="2"
-            />
-            <polyline
-              points="0,180 40,170 80,160 120,155 160,140 200,135 240,120 280,110 320,95 360,85 400,75"
-              fill="none"
-              stroke="var(--success-color)"
-              stroke-width="2"
-              stroke-dasharray="4,4"
-            />
-          </svg>
-          <div class="chart-legend">
-            <span class="legend-item">
-              <span class="legend-dot" style="background: var(--primary-color)"></span>
-              点赞
-            </span>
-            <span class="legend-item">
-              <span class="legend-dot" style="background: var(--success-color)"></span>
-              评论
-            </span>
-          </div>
-        </div>
-      </section>
-
       <!-- 评论摘要 -->
       <section class="section">
         <h2 class="section-title">评论摘要</h2>
@@ -259,29 +227,6 @@
         </div>
       </section>
 
-      <!-- 趋势对比 -->
-      <section class="section">
-        <h2 class="section-title">趋势对比</h2>
-        <div class="trend-comparison">
-          <div class="comparison-item">
-            <span class="label">该视频热度</span>
-            <div class="bar">
-              <div class="bar-fill primary" :style="{ width: '75%' }"></div>
-            </div>
-            <span class="value">{{ heatInfo.text }}</span>
-          </div>
-          <div class="comparison-item">
-            <span class="label">同领域平均</span>
-            <div class="bar">
-              <div class="bar-fill secondary" :style="{ width: '50%' }"></div>
-            </div>
-            <span class="value">50.0</span>
-          </div>
-          <div class="ranking">
-            该视频在同领域中排名 <strong>Top 15%</strong>
-          </div>
-        </div>
-      </section>
     </div>
   </div>
 </template>
@@ -729,36 +674,6 @@ const generatedAtText = computed(() => {
   color: var(--text-secondary);
 }
 
-.chart-placeholder {
-  width: 100%;
-}
-
-.mock-chart {
-  width: 100%;
-  height: 200px;
-}
-
-.chart-legend {
-  display: flex;
-  gap: var(--spacing-lg);
-  justify-content: center;
-  margin-top: var(--spacing-md);
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.legend-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
 .comment-summary {
   display: flex;
   flex-direction: column;
@@ -999,69 +914,6 @@ const generatedAtText = computed(() => {
   font-size: 12px;
   color: var(--text-tertiary);
   line-height: 1.5;
-}
-
-.trend-comparison {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md);
-}
-
-.comparison-item {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-}
-
-.comparison-item .label {
-  flex: 0 0 100px;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.bar {
-  flex: 1;
-  height: 8px;
-  background-color: var(--bg-secondary);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.bar-fill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width var(--transition-base);
-}
-
-.bar-fill.primary {
-  background-color: var(--primary-color);
-}
-
-.bar-fill.secondary {
-  background-color: var(--text-tertiary);
-}
-
-.comparison-item .value {
-  flex: 0 0 60px;
-  text-align: right;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.ranking {
-  margin-top: var(--spacing-sm);
-  padding: var(--spacing-md);
-  background-color: var(--bg-secondary);
-  border-radius: var(--radius-md);
-  font-size: 13px;
-  color: var(--text-secondary);
-  text-align: center;
-}
-
-.ranking strong {
-  color: var(--primary-color);
-  font-weight: 600;
 }
 
 @media (max-width: 768px) {
