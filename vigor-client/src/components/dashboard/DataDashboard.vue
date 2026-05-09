@@ -159,6 +159,16 @@
               情感倾向: {{ sentimentInfo.text }}
             </div>
           </div>
+          <div class="regenerate-summary">
+            <button
+              type="button"
+              class="regenerate-btn"
+              :disabled="generating"
+              @click="handleGenerateSummary"
+            >
+              {{ generating ? '生成中...' : '重新生成评论摘要' }}
+            </button>
+          </div>
         </div>
         <div v-else-if="video.comment_count > 0" class="generate-summary">
           <p class="hint">该视频有 {{ video.comment_count }} 条评论,可点击生成 AI 评论摘要</p>
@@ -665,6 +675,34 @@ const sentimentInfo = computed(() =>
 }
 
 .generate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.regenerate-summary {
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+}
+
+.regenerate-btn {
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.regenerate-btn:hover:not(:disabled) {
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+  background: rgba(0, 122, 255, 0.05);
+}
+
+.regenerate-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
