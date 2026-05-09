@@ -36,7 +36,7 @@
         </n-form>
       </n-card>
 
-      <n-card class="trigger-card update-card" title="触发数据更新" :bordered="false">
+      <n-card class="trigger-card" title="触发数据更新" :bordered="false">
         <n-form class="trigger-form" :model="updateFormData" label-placement="left" label-width="80">
           <n-form-item label="更新方式" path="mode">
             <n-radio-group v-model:value="updateFormData.mode">
@@ -336,15 +336,14 @@ onUnmounted(() => {
 }
 
 .trigger-section {
+  display: flex;
+  gap: var(--spacing-lg);
   margin-bottom: var(--spacing-xl);
 }
 
 .trigger-card {
-  max-width: 920px;
-}
-
-.update-card {
-  margin-top: var(--spacing-lg);
+  flex: 1;
+  max-width: none;
 }
 
 .trigger-form {
@@ -408,5 +407,11 @@ onUnmounted(() => {
 
 .history-section {
   margin-top: 24px;
+}
+
+@media (max-width: 768px) {
+  .trigger-section {
+    flex-direction: column;
+  }
 }
 </style>
