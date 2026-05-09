@@ -28,6 +28,7 @@ class CrawlTaskResponse(BaseModel):
     error_message: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    summary: Optional[str] = None
 
     @field_serializer("started_at", "completed_at")
     def _ser_dt(self, value: Optional[datetime]) -> Optional[str]:

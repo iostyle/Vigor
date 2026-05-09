@@ -352,6 +352,71 @@ class CrawlTaskListResponse(BaseModel):
     data: list[CrawlTaskResponse]
 
 
+def _build_task_summaries(
+    db: Session, tasks: list[CrawlTask]
+) -> dict[int, str]:
+    """批量为一页 task 生成摘要文本,避免 N+1。
+
+    策略:
+    - 批量查 keyword_id → keyword.keyword 映射
+    - 批量查每个 keyword_id 下最新一条 video 的 title(用于摘要展示)
+    - 按 task_type + videos_crawled 拼文案
+    """
+    if not tasks:
+        return {}
+
+    keyword_ids = list({t.keyword_id for t in tasks if t.keyword_id})
+
+    # 批量加载关键词名
+    kw_map: dict[int, str] = {}
+    if keyword_ids:
+        rows = db.query(Keyword.id, Keyword.keyword).filter(Keyword.id.in_(keyword_ids)).all()
+        kw_map = {r.id: r.keyword for r in rows}
+
+    # 批量加载每个 keyword_id 下最新一条 video title(按 id desc 取第一条)
+    # Why: 用 distinct on 或 subquery 太复杂,page_size 最多 100,keyword 去重后更少
+    first_video_map: dict[int, str] = {}
+    for kid in keyword_ids:
+        v = (
+            db.query(Video.title)
+            .filter(Video.keyword_id == kid)
+            .order_by(Video.id.desc())
+            .limit(1)
+            .first()
+        )
+        if v:
+            first_video_map[kid] = v.title or ""
+
+    summaries: dict[int, str] = {}
+    for t in tasks:
+        kw_name = kw_map.get(t.keyword_id, "")
+        video_title = first_video_map.get(t.keyword_id, "")
+        # 截断到 20 字符
+        short_title = video_title[:20] if video_title else ""
+
+        count = t.videos_crawled or 0
+        if t.task_type == "crawl":
+            if count > 0 and short_title:
+                summaries[t.id] = f"爬取了「{short_title}」等 {count} 个视频"
+            elif count > 0:
+                summaries[t.id] = f"爬取关键词「{kw_name}」,共 {count} 个视频"
+            else:
+                summaries[t.id] = f"爬取关键词「{kw_name}」"
+        elif t.task_type == "update":
+            if count == 1 and short_title:
+                summaries[t.id] = f"更新了「{short_title}」"
+            elif count > 1 and short_title:
+                summaries[t.id] = f"更新了「{short_title}」等 {count} 个视频"
+            elif count > 0:
+                summaries[t.id] = f"更新了 {count} 个视频"
+            else:
+                summaries[t.id] = f"更新关键词「{kw_name}」"
+        else:
+            summaries[t.id] = t.task_type
+
+    return summaries
+
+
 @router.get("", response_model=CrawlTaskListResponse)
 def list_tasks(
     page: int = Query(1, ge=1),
@@ -367,7 +432,13 @@ def list_tasks(
         .limit(page_size)
         .all()
     )
-    return CrawlTaskListResponse(
-        total=total,
-        data=[CrawlTaskResponse.model_validate(t) for t in tasks],
-    )
+
+    summaries = _build_task_summaries(db, tasks)
+
+    data: list[CrawlTaskResponse] = []
+    for t in tasks:
+        resp = CrawlTaskResponse.model_validate(t)
+        resp.summary = summaries.get(t.id)
+        data.append(resp)
+
+    return CrawlTaskListResponse(total=total, data=data)
