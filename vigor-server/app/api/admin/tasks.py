@@ -403,12 +403,10 @@ def _build_task_summaries(
             else:
                 summaries[t.id] = f"爬取关键词「{kw_name}」"
         elif t.task_type == "update":
-            if count == 1 and short_title:
-                summaries[t.id] = f"更新了「{short_title}」"
-            elif count > 1 and short_title:
-                summaries[t.id] = f"更新了「{short_title}」等 {count} 个视频"
-            elif count > 0:
-                summaries[t.id] = f"更新了 {count} 个视频"
+            if count == 1:
+                summaries[t.id] = f"更新了关键词「{kw_name}」下 1 个视频"
+            elif count > 1:
+                summaries[t.id] = f"更新了关键词「{kw_name}」下 {count} 个视频"
             else:
                 summaries[t.id] = f"更新关键词「{kw_name}」"
         else:
