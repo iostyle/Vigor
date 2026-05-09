@@ -73,7 +73,27 @@
           </div>
         </div>
         <div class="video-info">
-          <h1 class="video-title">{{ video.title }}</h1>
+          <h1 class="video-title">
+            <span
+              v-if="video.platform === 'bilibili'"
+              class="platform-icon platform-bilibili"
+              title="B站"
+            >
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path d="M18.223 3.086a1.25 1.25 0 0 1 0 1.768L17.08 5.996h1.17A3.75 3.75 0 0 1 22 9.747v7.5a3.75 3.75 0 0 1-3.75 3.75H5.75A3.75 3.75 0 0 1 2 17.247v-7.5a3.75 3.75 0 0 1 3.75-3.75h1.166L5.775 4.855a1.25 1.25 0 1 1 1.767-1.768l2.652 2.652a.984.984 0 0 1 .131.258h3.348a.984.984 0 0 1 .131-.258l2.652-2.652a1.25 1.25 0 0 1 1.768 0zM18.25 8.496H5.75a1.25 1.25 0 0 0-1.247 1.158l-.003.093v7.5c0 .659.51 1.198 1.157 1.246l.093.004h12.5a1.25 1.25 0 0 0 1.247-1.157l.003-.093v-7.5a1.25 1.25 0 0 0-1.157-1.247l-.093-.003zM8.5 11.499a1.25 1.25 0 0 1 1.25 1.25v1.25a1.25 1.25 0 1 1-2.5 0v-1.25a1.25 1.25 0 0 1 1.25-1.25zm7 0a1.25 1.25 0 0 1 1.25 1.25v1.25a1.25 1.25 0 1 1-2.5 0v-1.25a1.25 1.25 0 0 1 1.25-1.25z" />
+              </svg>
+            </span>
+            <span
+              v-else-if="video.platform === 'douyin'"
+              class="platform-icon platform-douyin"
+              title="抖音"
+            >
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path d="M19.321 5.562a5.124 5.124 0 0 1-.443-.258 6.228 6.228 0 0 1-1.137-.966c-.849-.971-1.166-1.957-1.282-2.647h.005A3.844 3.844 0 0 1 16.4 1h-3.27v12.638c0 .17 0 .337-.007.502a5.196 5.196 0 1 1-.717-2.7 5.196 5.196 0 0 1 .717 1.13V8.275a8.42 8.42 0 0 0-7.97 1.49C3.547 11.34 2.62 13.86 2.93 16.297c.31 2.437 1.78 4.485 3.94 5.49a8.481 8.481 0 0 0 7.96-.69 8.514 8.514 0 0 0 3.79-7.061V8.275a10.354 10.354 0 0 0 6.06 1.94V6.94a6.16 6.16 0 0 1-5.36-1.378z" />
+              </svg>
+            </span>
+            <span class="video-title-text">{{ video.title }}</span>
+          </h1>
           <div class="video-meta">
             <span class="author">{{ video.author_name || '匿名作者' }}</span>
             <span class="divider">·</span>
@@ -573,6 +593,32 @@ const generatedAtText = computed(() => {
   color: var(--text-primary);
   line-height: 1.4;
   margin-bottom: var(--spacing-sm);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.platform-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-top: 2px;
+}
+
+.platform-bilibili {
+  color: #00a1d6;
+}
+
+.platform-douyin {
+  color: #fe2c55;
+}
+
+.video-title-text {
+  flex: 1;
+  min-width: 0;
 }
 
 .video-meta {
