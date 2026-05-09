@@ -22,6 +22,7 @@ class CrawlTaskResponse(BaseModel):
 
     id: int
     keyword_id: Optional[int] = None
+    video_id: Optional[int] = None
     task_type: str
     status: CrawlTaskStatus
     videos_crawled: int = 0
