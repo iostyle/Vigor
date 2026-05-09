@@ -287,24 +287,29 @@ async function handleGenerateSummary() {
   generating.value = true
   // 重新生成场景:先停掉旧的 interval
   stopPolling()
+  // 记录当前摘要生成时间,用来判断新摘要是否真的产生(重新生成时必须 > 此值)
+  const baselineGeneratedAt = props.video.comment_summary?.generated_at || null
   try {
     await videoApi.generateSummary(props.video.id)
     message.success('摘要生成中,生成完成后会自动刷新')
-    pollForSummary(props.video.id)
+    pollForSummary(props.video.id, baselineGeneratedAt)
   } catch (error: any) {
     message.error(error.message || '生成摘要失败')
     generating.value = false
   }
 }
 
-function pollForSummary(videoId: number) {
+function pollForSummary(videoId: number, baselineGeneratedAt: string | null) {
   let attempts = 0
   const maxAttempts = 24 // 最多 120s (24 * 5s)
   pollTimer = window.setInterval(async () => {
     attempts++
     try {
       const detail = await videoApi.getSummary(videoId)
-      if (detail.comment_summary) {
+      const cs = detail.comment_summary
+      // 重新生成:要求 generated_at 严格晚于基线时间戳;首次生成:有摘要即可
+      const isReady = cs && (!baselineGeneratedAt || cs.generated_at > baselineGeneratedAt)
+      if (isReady) {
         stopPolling()
         generating.value = false
         emit('refresh')
