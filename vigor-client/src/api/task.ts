@@ -22,17 +22,12 @@ export interface Task {
   error_message: string | null
 }
 
-export interface TaskListResponse {
-  total: number
-  data: Task[]
-}
-
 export const taskApi = {
   triggerCrawl(data: CrawlTaskTriggerRequest): Promise<CrawlTaskResponse> {
     return request.post('/api/admin/tasks/crawl', data)
   },
 
-  list(params?: { limit?: number; offset?: number }): Promise<TaskListResponse> {
+  list(params?: { page?: number; page_size?: number }): Promise<Task[]> {
     return request.get('/api/admin/tasks', { params })
   }
 }

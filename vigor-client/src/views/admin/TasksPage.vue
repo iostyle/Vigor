@@ -7,7 +7,7 @@
 
     <div class="trigger-section">
       <n-card title="触发新爬取" :bordered="false">
-        <n-form ref="formRef" :model="formData" label-placement="left" label-width="80">
+        <n-form :model="formData" label-placement="left" label-width="80">
           <n-form-item label="关键词" path="keyword_id">
             <n-select
               v-model:value="formData.keyword_id"
@@ -53,10 +53,22 @@
 
 <script setup lang="ts">
 import { ref, onMounted, h } from 'vue'
-import { NCard, NForm, NFormItem, NSelect, NRadioGroup, NRadio, NButton, NDataTable, NTag, useMessage } from 'naive-ui'
+import {
+  NButton,
+  NCard,
+  NDataTable,
+  NForm,
+  NFormItem,
+  NRadio,
+  NRadioGroup,
+  NSelect,
+  NTag,
+  useMessage
+} from 'naive-ui'
 import type { DataTableColumns, SelectOption } from 'naive-ui'
+import { keywordApi } from '@/api/keyword'
 import { taskApi, type Task } from '@/api/task'
-import { keywordApi, type Keyword } from '@/api/keyword'
+import type { Keyword } from '@/types/keyword'
 
 const message = useMessage()
 
@@ -76,6 +88,7 @@ const pagination = ref({
   pageSize: 20,
   showSizePicker: true,
   pageSizes: [10, 20, 50],
+  itemCount: 0,
   onChange: (page: number) => {
     pagination.value.page = page
     fetchTasks()
@@ -108,10 +121,10 @@ const columns: DataTableColumns<Task> = [
     key: 'status',
     width: 100,
     render(row) {
-      const statusMap: Record<string, { type: 'success' | 'warning' | 'error' | 'info', text: string }> = {
+      const statusMap: Record<string, { type: 'success' | 'warning' | 'error' | 'info'; text: string }> = {
         pending: { type: 'info', text: '等待中' },
         running: { type: 'warning', text: '运行中' },
-        completed: { type: 'success', text: '已完成' },
+        success: { type: 'success', text: '已完成' },
         failed: { type: 'error', text: '失败' }
       }
       const status = statusMap[row.status] || { type: 'info', text: row.status }
@@ -156,7 +169,7 @@ async function fetchKeywords() {
       label: `${k.keyword} (ID: ${k.id})`,
       value: k.id
     }))
-  } catch (error) {
+  } catch {
     message.error('加载关键词失败')
   } finally {
     loadingKeywords.value = false
@@ -166,13 +179,13 @@ async function fetchKeywords() {
 async function fetchTasks() {
   loadingTasks.value = true
   try {
-    const offset = (pagination.value.page - 1) * pagination.value.pageSize
     const res = await taskApi.list({
-      limit: pagination.value.pageSize,
-      offset
+      page: pagination.value.page,
+      page_size: pagination.value.pageSize
     })
-    tasks.value = res.data
-  } catch (error) {
+    tasks.value = res
+    pagination.value.itemCount = res.length
+  } catch {
     message.error('加载任务历史失败')
   } finally {
     loadingTasks.value = false
@@ -192,10 +205,7 @@ async function handleTrigger() {
       platform: formData.value.platform
     })
     message.success(`爬取任务已触发 (Task ID: ${res.task_id})`)
-    // 刷新任务列表
-    setTimeout(() => {
-      fetchTasks()
-    }, 1000)
+    fetchTasks()
   } catch (error: any) {
     message.error(error.message || '触发爬取失败')
   } finally {
