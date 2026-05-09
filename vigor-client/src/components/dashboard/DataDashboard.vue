@@ -134,7 +134,12 @@
       <!-- 评论摘要 -->
       <section class="section">
         <h2 class="section-title">评论摘要</h2>
-        <div v-if="video.comment_summary" class="comment-summary">
+        <div v-if="generating" class="generating-summary">
+          <div class="generating-spinner"></div>
+          <p class="generating-text">正在生成评论摘要…</p>
+          <p class="generating-hint">AI 处理约需 1 分钟,完成后会自动刷新</p>
+        </div>
+        <div v-else-if="video.comment_summary" class="comment-summary">
           <p class="summary-text">{{ video.comment_summary.summary }}</p>
           <div class="summary-meta">
             <div class="keywords">
@@ -775,6 +780,44 @@ const generatedAtText = computed(() => {
 .generate-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.generating-summary {
+  padding: var(--spacing-xl);
+  background-color: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.generating-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.generating-text {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.generating-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .regenerate-summary {
