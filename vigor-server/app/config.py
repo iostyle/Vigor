@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str
     DOUYIN_API_KEY: str
     DOUBAO_API_KEY: str
+    DOUBAO_ENDPOINT_ID: str
     SECRET_KEY: str
     API_KEY: str
     DOUBAO_MOCK_MODE: bool = True

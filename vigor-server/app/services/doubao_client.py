@@ -11,7 +11,7 @@ class DoubaoClient:
     def __init__(
         self,
         api_key: str,
-        model: str = "doubao-pro-32k",
+        model: str,
         mock_mode: bool = False,
     ):
         self.api_key = api_key

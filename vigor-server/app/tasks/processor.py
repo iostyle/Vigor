@@ -14,6 +14,7 @@ from app.services.doubao_client import DoubaoClient
 def _get_doubao_client() -> DoubaoClient:
     return DoubaoClient(
         api_key=settings.DOUBAO_API_KEY,
+        model=settings.DOUBAO_ENDPOINT_ID,
         mock_mode=settings.DOUBAO_MOCK_MODE,
     )
 
