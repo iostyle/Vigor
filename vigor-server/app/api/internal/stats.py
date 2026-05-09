@@ -28,6 +28,12 @@ class TrendStatsResponse(BaseModel):
     avg_heat_score: float
 
 
+class TodayStatsResponse(BaseModel):
+    date: str
+    total: int
+    by_platform: dict[str, int]
+
+
 @router.get("/keywords", response_model=list[KeywordStatsResponse])
 def list_keyword_stats(db: Session = Depends(get_db)) -> list[KeywordStatsResponse]:
     rows = (
@@ -77,3 +83,32 @@ def list_trends(db: Session = Depends(get_db)) -> list[TrendStatsResponse]:
         )
         for row in rows
     ]
+
+
+@router.get("/today", response_model=TodayStatsResponse)
+def get_today_stats(db: Session = Depends(get_db)) -> TodayStatsResponse:
+    """今日(UTC)新增视频数,按 crawled_at 落在当日 0:00 到现在统计。"""
+    now = datetime.utcnow()
+    # Why: 截断到 UTC 当日 0 点;crawled_at 在 DB 里就是 UTC
+    start = datetime(now.year, now.month, now.day)
+
+    total = (
+        db.query(func.count(Video.id))
+        .filter(Video.crawled_at >= start)
+        .scalar()
+        or 0
+    )
+
+    rows = (
+        db.query(Video.platform, func.count(Video.id))
+        .filter(Video.crawled_at >= start)
+        .group_by(Video.platform)
+        .all()
+    )
+    by_platform = {platform: int(count) for platform, count in rows}
+
+    return TodayStatsResponse(
+        date=start.strftime("%Y-%m-%d"),
+        total=int(total),
+        by_platform=by_platform,
+    )
