@@ -131,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, h } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, h } from 'vue'
 import {
   NCard,
   NDataTable,
@@ -192,19 +192,19 @@ const tasks = ref<Task[]>([])
 const loadingTasks = ref(false)
 let pollingTimer: number | null = null
 
-const pagination = ref({
+const pagination = reactive({
   page: 1,
   pageSize: 20,
   showSizePicker: true,
   pageSizes: [10, 20, 50],
   itemCount: 0,
   onChange: (page: number) => {
-    pagination.value.page = page
+    pagination.page = page
     fetchTasks()
   },
   onUpdatePageSize: (pageSize: number) => {
-    pagination.value.pageSize = pageSize
-    pagination.value.page = 1
+    pagination.pageSize = pageSize
+    pagination.page = 1
     fetchTasks()
   }
 })
@@ -314,11 +314,11 @@ async function fetchTasks(showLoading = true) {
   }
   try {
     const res = await taskApi.list({
-      page: pagination.value.page,
-      page_size: pagination.value.pageSize
+      page: pagination.page,
+      page_size: pagination.pageSize
     })
     tasks.value = res.data
-    pagination.value.itemCount = res.total
+    pagination.itemCount = res.total
   } catch {
     if (showLoading) {
       message.error('加载任务历史失败')
