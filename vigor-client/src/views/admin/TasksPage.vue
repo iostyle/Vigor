@@ -6,8 +6,8 @@
     </div>
 
     <div class="trigger-section">
-      <n-card title="触发新爬取" :bordered="false">
-        <n-form :model="formData" label-placement="left" label-width="80">
+      <n-card class="trigger-card" title="触发新爬取" :bordered="false">
+        <n-form class="trigger-form" :model="formData" label-placement="left" label-width="80">
           <n-form-item label="关键词" path="keyword_id">
             <n-select
               v-model:value="formData.keyword_id"
@@ -23,16 +23,16 @@
               <n-radio value="douyin">抖音</n-radio>
             </n-radio-group>
           </n-form-item>
-          <n-form-item>
-            <n-button
-              type="primary"
-              :loading="triggering"
-              :disabled="!formData.keyword_id"
+          <div class="form-actions">
+            <button
+              type="button"
+              class="trigger-btn"
+              :disabled="!formData.keyword_id || triggering"
               @click="handleTrigger"
             >
-              开始爬取
-            </n-button>
-          </n-form-item>
+              {{ triggering ? '爬取中...' : '开始爬取' }}
+            </button>
+          </div>
         </n-form>
       </n-card>
     </div>
@@ -52,9 +52,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, h } from 'vue'
+import { ref, onMounted, onUnmounted, h } from 'vue'
 import {
-  NButton,
   NCard,
   NDataTable,
   NForm,
@@ -83,6 +82,8 @@ const triggering = ref(false)
 
 const tasks = ref<Task[]>([])
 const loadingTasks = ref(false)
+let pollingTimer: number | null = null
+
 const pagination = ref({
   page: 1,
   pageSize: 20,
@@ -123,8 +124,9 @@ const columns: DataTableColumns<Task> = [
     render(row) {
       const statusMap: Record<string, { type: 'success' | 'warning' | 'error' | 'info'; text: string }> = {
         pending: { type: 'info', text: '等待中' },
-        running: { type: 'warning', text: '运行中' },
+        running: { type: 'warning', text: '爬取中' },
         success: { type: 'success', text: '已完成' },
+        completed: { type: 'success', text: '已完成' },
         failed: { type: 'error', text: '失败' }
       }
       const status = statusMap[row.status] || { type: 'info', text: row.status }
@@ -176,8 +178,10 @@ async function fetchKeywords() {
   }
 }
 
-async function fetchTasks() {
-  loadingTasks.value = true
+async function fetchTasks(showLoading = true) {
+  if (showLoading) {
+    loadingTasks.value = true
+  }
   try {
     const res = await taskApi.list({
       page: pagination.value.page,
@@ -186,9 +190,13 @@ async function fetchTasks() {
     tasks.value = res
     pagination.value.itemCount = res.length
   } catch {
-    message.error('加载任务历史失败')
+    if (showLoading) {
+      message.error('加载任务历史失败')
+    }
   } finally {
-    loadingTasks.value = false
+    if (showLoading) {
+      loadingTasks.value = false
+    }
   }
 }
 
@@ -216,18 +224,25 @@ async function handleTrigger() {
 onMounted(() => {
   fetchKeywords()
   fetchTasks()
+  pollingTimer = window.setInterval(() => {
+    fetchTasks(false)
+  }, 4000)
+})
+
+onUnmounted(() => {
+  if (pollingTimer !== null) {
+    window.clearInterval(pollingTimer)
+    pollingTimer = null
+  }
 })
 </script>
 
 <style scoped>
 .tasks-page {
-  padding: 24px;
-  max-width: 1400px;
-  margin: 0 auto;
 }
 
 .page-header {
-  margin-bottom: 24px;
+  margin-bottom: var(--spacing-xl);
 }
 
 .page-header h1 {
@@ -244,7 +259,70 @@ onMounted(() => {
 }
 
 .trigger-section {
-  margin-bottom: 24px;
+  margin-bottom: var(--spacing-xl);
+}
+
+.trigger-card {
+  max-width: 920px;
+}
+
+.trigger-form {
+  max-width: 720px;
+}
+
+.form-actions {
+  padding-left: 80px;
+  margin-top: 4px;
+}
+
+.trigger-btn {
+  min-width: 120px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 122, 255, 0.18);
+  background: linear-gradient(180deg, #2997ff 0%, #007aff 100%);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 6px 18px rgba(0, 122, 255, 0.18);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    filter 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.trigger-btn:hover:not(:disabled) {
+  filter: brightness(1.03);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.1),
+    0 8px 22px rgba(0, 122, 255, 0.24);
+  transform: translateY(-1px);
+}
+
+.trigger-btn:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.98);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 4px 12px rgba(0, 122, 255, 0.18);
+}
+
+.trigger-btn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px rgba(0, 122, 255, 0.18),
+    0 6px 18px rgba(0, 122, 255, 0.18);
+}
+
+.trigger-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .history-section {

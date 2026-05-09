@@ -1,9 +1,11 @@
 export interface Video {
   id: number
-  douyin_id: string
+  douyin_id?: string
+  external_id?: string
+  platform?: string
   title: string
   author_name: string | null
-  author_id: string | null
+  author_id?: string | null
   cover_url: string | null
   video_url: string | null
   like_count: number
@@ -11,6 +13,8 @@ export interface Video {
   share_count: number
   heat_score: number | null
   publish_time: string | null
+  crawled_at?: string | null
+  last_updated_at?: string | null
   summary: string | null
   comment_summary?: CommentSummary
 }
