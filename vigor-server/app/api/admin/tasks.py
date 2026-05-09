@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, verify_api_key
+from app.models.category import Category
 from app.models.keyword import Keyword
 from app.models.task import CrawlTask
 from app.models.video import Video
@@ -23,6 +24,19 @@ router = APIRouter(
 class CrawlTriggerRequest(BaseModel):
     keyword_id: int
     platform: str = "douyin"
+
+
+class CrawlByCategoryRequest(BaseModel):
+    category_id: int
+    platform: str = "douyin"
+
+
+class CrawlByCategoryResponse(BaseModel):
+    category_id: int
+    keyword_count: int
+    task_ids: list[int]
+    celery_task_ids: list[str]
+    status: str
 
 
 class UpdateTriggerRequest(BaseModel):
@@ -80,6 +94,71 @@ def trigger_crawl(
         task_id=task.id,
         celery_task_id=celery_task_id,
         status=task.status,
+    )
+
+
+@router.post(
+    "/crawl-by-category",
+    response_model=CrawlByCategoryResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def trigger_crawl_by_category(
+    payload: CrawlByCategoryRequest,
+    db: Session = Depends(get_db),
+) -> CrawlByCategoryResponse:
+    """按领域批量触发爬取:对该领域下所有 active 关键词,各创建一个
+    CrawlTask 行并 .delay() 派发 crawl_keyword_task。"""
+    category = db.query(Category).filter(Category.id == payload.category_id).first()
+    if category is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Category not found",
+        )
+
+    keywords = (
+        db.query(Keyword)
+        .filter(
+            Keyword.category_id == payload.category_id,
+            Keyword.status == "active",
+        )
+        .all()
+    )
+    if not keywords:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active keywords in this category",
+        )
+
+    # Why: 先把所有 task 行落库取到 id,再统一派 celery,避免出现
+    # "celery 收到任务但 DB 还没那行"的竞态
+    tasks: list[CrawlTask] = []
+    for kw in keywords:
+        t = CrawlTask(
+            keyword_id=kw.id,
+            task_type="crawl",
+            status="pending",
+            videos_crawled=0,
+            started_at=datetime.utcnow(),
+        )
+        db.add(t)
+        tasks.append(t)
+    db.commit()
+    for t in tasks:
+        db.refresh(t)
+
+    task_ids: list[int] = []
+    celery_task_ids: list[str] = []
+    for kw, t in zip(keywords, tasks):
+        cid = _enqueue_celery_task("crawl_keyword", kw.id, payload.platform, t.id)
+        task_ids.append(t.id)
+        celery_task_ids.append(cid)
+
+    return CrawlByCategoryResponse(
+        category_id=payload.category_id,
+        keyword_count=len(keywords),
+        task_ids=task_ids,
+        celery_task_ids=celery_task_ids,
+        status="pending",
     )
 
 
