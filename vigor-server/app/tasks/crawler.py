@@ -35,19 +35,35 @@ def _parse_time(value) -> datetime | None:
     max_retries=3,
     default_retry_delay=60,
 )
-def crawl_keyword_task(self, keyword_id: int, platform: str = "douyin"):
+def crawl_keyword_task(self, keyword_id: int, platform: str = "douyin", task_id: int | None = None):
     """按关键词在指定平台爬取视频与热门评论,并派发摘要任务
 
     platform 从 trigger_crawl API 请求体传入,不再依赖 keyword.platform
     (keyword 和 platform 已正交,同一关键词可在多平台使用)
+
+    task_id: 由 trigger_crawl API 预创建的任务行 ID。传入则复用该行,
+    不再另起 pending 行,避免出现"同一爬取在列表中有两条记录"。
     """
     db = SessionLocal()
-    task_record = CrawlTask(
-        keyword_id=keyword_id,
-        task_type="crawl",
-        status="running",
-        started_at=datetime.now(),
-    )
+    if task_id is not None:
+        task_record = db.query(CrawlTask).filter(CrawlTask.id == task_id).first()
+        if task_record is None:
+            task_record = CrawlTask(
+                keyword_id=keyword_id,
+                task_type="crawl",
+                status="running",
+                started_at=datetime.utcnow(),
+            )
+        else:
+            task_record.status = "running"
+            task_record.started_at = datetime.utcnow()
+    else:
+        task_record = CrawlTask(
+            keyword_id=keyword_id,
+            task_type="crawl",
+            status="running",
+            started_at=datetime.utcnow(),
+        )
 
     try:
         keyword = db.query(Keyword).filter(Keyword.id == keyword_id).first()
@@ -107,7 +123,7 @@ def crawl_keyword_task(self, keyword_id: int, platform: str = "douyin"):
                 share_count=item.get("share_count", 0),
                 publish_time=publish_time,
                 heat_score=heat,
-                last_updated_at=datetime.now(),
+                last_updated_at=datetime.utcnow(),
             )
             db.add(video)
             saved_videos.append(video)
@@ -133,7 +149,7 @@ def crawl_keyword_task(self, keyword_id: int, platform: str = "douyin"):
 
         task_record.videos_crawled = len(saved_videos)
         task_record.status = "success"
-        task_record.completed_at = datetime.now()
+        task_record.completed_at = datetime.utcnow()
         db.add(task_record)
         db.commit()
 
@@ -150,7 +166,7 @@ def crawl_keyword_task(self, keyword_id: int, platform: str = "douyin"):
         db.rollback()
         task_record.status = "failed"
         task_record.error_message = str(exc)
-        task_record.completed_at = datetime.now()
+        task_record.completed_at = datetime.utcnow()
         try:
             db.add(task_record)
             db.commit()

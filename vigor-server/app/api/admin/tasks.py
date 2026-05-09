@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -43,7 +43,6 @@ def _enqueue_celery_task(task_name: str, *args) -> str:
         return result.id
     return f"celery-{task_name}-placeholder"
 
-
 @router.post(
     "/crawl",
     response_model=TaskTriggerResponse,
@@ -65,13 +64,13 @@ def trigger_crawl(
         task_type="crawl",
         status="pending",
         videos_crawled=0,
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.utcnow(),
     )
     db.add(task)
     db.commit()
     db.refresh(task)
 
-    celery_task_id = _enqueue_celery_task("crawl_keyword", payload.keyword_id, payload.platform)
+    celery_task_id = _enqueue_celery_task("crawl_keyword", payload.keyword_id, payload.platform, task.id)
 
     return TaskTriggerResponse(
         task_id=task.id,
@@ -116,7 +115,7 @@ def trigger_update(
         task_type="update",
         status="pending",
         videos_crawled=0,
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.utcnow(),
     )
     db.add(task)
     db.commit()
@@ -142,7 +141,7 @@ def list_tasks(
     offset = (page - 1) * page_size
     tasks = (
         db.query(CrawlTask)
-        .order_by(CrawlTask.started_at.desc().nullslast())
+        .order_by(CrawlTask.id.desc())
         .offset(offset)
         .limit(page_size)
         .all()
