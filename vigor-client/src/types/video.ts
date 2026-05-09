@@ -16,6 +16,7 @@ export interface Video {
   crawled_at?: string | null
   last_updated_at?: string | null
   summary: string | null
+  tags?: string[]
   comment_summary?: CommentSummary
 }
 

@@ -85,6 +85,9 @@
               </svg>
             </a>
           </div>
+          <div v-if="video.tags && video.tags.length > 0" class="video-tags">
+            <span v-for="tag in video.tags" :key="tag" class="tag-item">{{ tag }}</span>
+          </div>
           <div class="metrics">
             <div class="metric">
               <div class="metric-value">{{ formatNumber(video.like_count) }}</div>
@@ -496,6 +499,27 @@ const generatedAtText = computed(() => {
   font-size: 13px;
   color: var(--text-secondary);
   margin-bottom: var(--spacing-lg);
+}
+
+.video-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: var(--spacing-lg);
+}
+
+.tag-item {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  transition: all 0.2s;
+}
+
+.tag-item:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .external-link {
