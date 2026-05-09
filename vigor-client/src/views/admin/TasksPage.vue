@@ -216,9 +216,15 @@ const columns: DataTableColumns<Task> = [
     width: 60
   },
   {
-    title: '关键词ID',
-    key: 'keyword_id',
-    width: 100
+    title: '摘要',
+    key: 'summary',
+    minWidth: 240,
+    ellipsis: {
+      tooltip: true
+    },
+    render(row) {
+      return row.summary || '-'
+    }
   },
   {
     title: '任务类型',

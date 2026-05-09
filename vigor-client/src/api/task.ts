@@ -63,6 +63,7 @@ export interface Task {
   started_at: string
   completed_at: string | null
   error_message: string | null
+  summary?: string | null
 }
 
 export interface TaskListResponse {
