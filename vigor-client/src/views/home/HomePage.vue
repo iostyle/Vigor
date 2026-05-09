@@ -7,8 +7,19 @@
     />
 
     <div class="main-content" :class="{ 'mobile-detail': isMobile && videoStore.selectedVideo }">
-      <div class="list-panel">
+      <div class="list-panel" :class="{ collapsed: sidebarCollapsed }">
+        <button
+          v-if="!isMobile"
+          class="sidebar-toggle"
+          :title="sidebarCollapsed ? '展开列表' : '收起列表'"
+          @click="toggleSidebar"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" :class="{ 'icon-flipped': sidebarCollapsed }">
+            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+          </svg>
+        </button>
         <VideoList
+          v-show="!sidebarCollapsed"
           :videos="videoStore.videos"
           :loading="videoStore.loading"
           :selected-id="videoStore.selectedVideo?.id ?? null"
@@ -36,17 +47,32 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, onUnmounted } from 'vue'
+import { onMounted, ref, onUnmounted, watch } from 'vue'
 import { useCategoryStore } from '@/stores/category'
 import { useVideoStore } from '@/stores/video'
 import TopNavBar from '@/components/common/TopNavBar.vue'
 import VideoList from '@/components/video/VideoList.vue'
 import DataDashboard from '@/components/dashboard/DataDashboard.vue'
 
+const SIDEBAR_KEY = 'vigor:home:sidebarCollapsed'
+
 const categoryStore = useCategoryStore()
 const videoStore = useVideoStore()
 
 const isMobile = ref(false)
+const sidebarCollapsed = ref(localStorage.getItem(SIDEBAR_KEY) === 'true')
+
+watch(sidebarCollapsed, (val) => {
+  try {
+    localStorage.setItem(SIDEBAR_KEY, String(val))
+  } catch {
+    // localStorage 不可用时静默失败
+  }
+})
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+}
 
 function checkMobile() {
   isMobile.value = window.innerWidth < 768
@@ -123,6 +149,46 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+  transition: flex-basis 0.3s ease, max-width 0.3s ease, min-width 0.3s ease;
+}
+
+.list-panel.collapsed {
+  flex: 0 0 48px;
+  max-width: 48px;
+  min-width: 48px;
+}
+
+.sidebar-toggle {
+  position: absolute;
+  top: 16px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  color: var(--text-secondary);
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.sidebar-toggle:hover {
+  background: var(--bg-secondary);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.sidebar-toggle svg {
+  transition: transform 0.3s ease;
+}
+
+.sidebar-toggle .icon-flipped {
+  transform: rotate(180deg);
 }
 
 .dashboard-panel {
@@ -155,6 +221,16 @@ onUnmounted(() => {
     min-width: 0;
     width: 100%;
     border-right: none;
+  }
+
+  .list-panel.collapsed {
+    flex: 1;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .sidebar-toggle {
+    display: none;
   }
 
   .dashboard-panel {
