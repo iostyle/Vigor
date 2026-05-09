@@ -140,3 +140,26 @@ def trigger_video_update(
         queue="updater",
     )
     return {"status": "accepted", "task_id": result.id, "video_id": video_id}
+
+
+@router.post("/{video_id}/generate-summary", status_code=status.HTTP_202_ACCEPTED)
+def trigger_generate_summary(
+    video_id: int,
+    db: Session = Depends(get_db),
+) -> dict:
+    """手动触发视频评论摘要生成,派发到 processor 队列。"""
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if video is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Video not found"
+        )
+
+    # Why: 延迟 import 避免在 FastAPI 启动时触发 celery task 模块重入
+    from app.tasks.processor import generate_summary_task
+
+    result = generate_summary_task.delay(video_id)
+    return {
+        "task_id": video_id,
+        "celery_task_id": result.id,
+        "status": "pending",
+    }

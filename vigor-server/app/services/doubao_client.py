@@ -52,9 +52,12 @@ class DoubaoClient:
     async def generate_comment_summary(self, comments: list[str]) -> dict:
         if self.mock_mode:
             return {
-                "summary": "[Mock] 评论摘要",
-                "sentiment": "neutral",
-                "top_keywords": ["mock"],
+                "summary": (
+                    "评论整体积极,用户对内容表示认可,讨论集中在投资收益、风险控制"
+                    "以及后续策略等话题。少数评论表达观望态度,对未来走势持谨慎看法。"
+                ),
+                "sentiment": "positive",
+                "top_keywords": ["投资", "理财", "收益", "风险", "策略"],
             }
 
         joined = "\n".join(comments[:50])

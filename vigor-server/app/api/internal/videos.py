@@ -73,12 +73,52 @@ def _get_video_or_404(db: Session, video_id: int) -> Video:
     return video
 
 
+def _attach_comment_summary(
+    db: Session, video: Video, response: VideoResponse
+) -> VideoResponse:
+    """把 CommentSummary outerjoin 上来并填到 response.comment_summary。
+
+    CommentSummary.top_keywords 在 DB 里是 JSON 字符串,这里 json.loads 成 list。
+    """
+    summary_row = (
+        db.query(CommentSummary)
+        .filter(CommentSummary.video_id == video.id)
+        .first()
+    )
+    if summary_row is None:
+        return response
+
+    top_keywords: list[str] = []
+    if summary_row.top_keywords:
+        import json
+
+        try:
+            parsed = json.loads(summary_row.top_keywords)
+            if isinstance(parsed, list):
+                top_keywords = [str(item) for item in parsed]
+        except (ValueError, TypeError):
+            # 兼容旧数据:逗号分隔字符串
+            top_keywords = [
+                s.strip() for s in summary_row.top_keywords.split(",") if s.strip()
+            ]
+
+    response.comment_summary = CommentSummaryResponse(
+        summary=summary_row.summary or "",
+        top_keywords=top_keywords,
+        sentiment=summary_row.sentiment or "neutral",
+        generated_at=summary_row.generated_at or datetime.utcnow(),
+        comment_count=summary_row.comment_count or 0,
+    )
+    return response
+
+
 @router.get("/{video_id}", response_model=VideoResponse)
 def get_video(
     video_id: int, db: Session = Depends(get_db)
 ) -> VideoResponse:
     video = _get_video_or_404(db, video_id)
-    return VideoResponse.model_validate(video)
+    response = VideoResponse.model_validate(video)
+    return _attach_comment_summary(db, video, response)
 
 
 @router.get("/{video_id}/comments", response_model=list[CommentResponse])
@@ -105,34 +145,5 @@ def get_video_summary(
     video_id: int, db: Session = Depends(get_db)
 ) -> VideoResponse:
     video = _get_video_or_404(db, video_id)
-    summary_row = (
-        db.query(CommentSummary)
-        .filter(CommentSummary.video_id == video_id)
-        .first()
-    )
-
     response = VideoResponse.model_validate(video)
-    if summary_row is not None:
-        top_keywords: list[str] = []
-        if summary_row.top_keywords:
-            import json
-
-            try:
-                parsed = json.loads(summary_row.top_keywords)
-                if isinstance(parsed, list):
-                    top_keywords = [str(item) for item in parsed]
-            except (ValueError, TypeError):
-                top_keywords = [
-                    s.strip()
-                    for s in summary_row.top_keywords.split(",")
-                    if s.strip()
-                ]
-
-        response.comment_summary = CommentSummaryResponse(
-            summary=summary_row.summary or "",
-            top_keywords=top_keywords,
-            sentiment=summary_row.sentiment or "neutral",
-            generated_at=summary_row.generated_at or datetime.utcnow(),
-            comment_count=summary_row.comment_count or 0,
-        )
-    return response
+    return _attach_comment_summary(db, video, response)
