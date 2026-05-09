@@ -529,6 +529,23 @@ class BilibiliClient:
             for v in videos:
                 v["comments"] = comments_by_video.get(v["external_id"], [])[:comments_per_video]
 
+        # MediaCrawler 的 search JSONL 里没有 tag 字段,导致 _normalize_bili_item
+        # 出来的 tags 永远是 [](已核对 2026-05-09 产物)。这里对 tags 为空的
+        # 视频补打一次 /x/tag/archive/tags 接口,失败仍返回 [] 不阻断。
+        # Why: 避免在 crawler 任务层加额外调用,让 BilibiliClient 自己保证
+        # "拿出来的视频带 tags" 的语义一致。
+        if not self.mock_mode:
+            missing = [v for v in videos if not v.get("tags")]
+            for v in missing:
+                try:
+                    v["tags"] = await self._fetch_tags_safe(None, v["external_id"])
+                except Exception as exc:
+                    logger.warning(
+                        "BilibiliClient search tag enrich 失败 bvid=%s: %s",
+                        v.get("external_id"), exc,
+                    )
+                    v["tags"] = []
+
         return videos
 
     async def _run_media_crawler_comments(
