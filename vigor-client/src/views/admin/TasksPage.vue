@@ -1,8 +1,8 @@
 <template>
   <div class="tasks-page">
     <div class="page-header">
-      <h1>爬取管理</h1>
-      <p class="subtitle">手动触发视频爬取任务</p>
+      <h1>任务管理</h1>
+      <p class="subtitle">手动触发爬取、数据更新及评论摘要任务,并查看历史</p>
     </div>
 
     <div class="trigger-section">
@@ -117,7 +117,7 @@
     </div>
 
     <div class="history-section">
-      <n-card title="爬取历史" :bordered="false">
+      <n-card title="任务历史" :bordered="false">
         <n-data-table
           remote
           :columns="columns"
@@ -234,7 +234,8 @@ const columns: DataTableColumns<Task> = [
     render(row) {
       const typeMap: Record<string, string> = {
         crawl: '爬取',
-        update: '更新'
+        update: '更新',
+        summary: '评论摘要'
       }
       return typeMap[row.task_type] || row.task_type
     }
