@@ -150,6 +150,7 @@ def crawl_keyword_task(self, keyword_id: int, platform: str = "douyin", task_id:
                 )
 
         task_record.videos_crawled = len(saved_videos)
+        task_record.video_ids = json.dumps([v.id for v in saved_videos])
         task_record.status = "success"
         task_record.completed_at = datetime.utcnow()
         db.add(task_record)

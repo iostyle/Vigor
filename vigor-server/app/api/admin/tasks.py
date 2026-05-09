@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from typing import Optional, Union
 
@@ -193,7 +194,7 @@ def _bulk_dispatch_video_updates(
     for v in videos:
         t = CrawlTask(
             keyword_id=v.keyword_id,
-            video_id=v.id,
+            video_ids=json.dumps([v.id]),
             task_type="update",
             status="pending",
             videos_crawled=0,
@@ -244,7 +245,7 @@ def trigger_update(
             )
         task = CrawlTask(
             keyword_id=video.keyword_id,
-            video_id=video.id,
+            video_ids=json.dumps([video.id]),
             task_type="update",
             status="pending",
             videos_crawled=0,
@@ -389,11 +390,19 @@ def _build_task_summaries(
         if v:
             first_video_map[kid] = v.title or ""
 
-    # 批量加载 video_id → title(用于 update 类型精确显示)
-    video_ids = list({t.video_id for t in tasks if t.video_id})
+    # 批量加载 video_ids 里出现的所有 video title(用于 update + crawl 精确显示)
+    all_video_ids: set[int] = set()
+    for t in tasks:
+        if t.video_ids:
+            try:
+                ids = json.loads(t.video_ids)
+                if isinstance(ids, list):
+                    all_video_ids.update(int(x) for x in ids if x is not None)
+            except (ValueError, TypeError):
+                pass
     video_title_map: dict[int, str] = {}
-    if video_ids:
-        rows = db.query(Video.id, Video.title).filter(Video.id.in_(video_ids)).all()
+    if all_video_ids:
+        rows = db.query(Video.id, Video.title).filter(Video.id.in_(list(all_video_ids))).all()
         video_title_map = {r.id: (r.title or "") for r in rows}
 
     summaries: dict[int, str] = {}
@@ -401,23 +410,31 @@ def _build_task_summaries(
         kw_name = kw_map.get(t.keyword_id, "")
         count = t.videos_crawled or 0
 
+        # 解析 video_ids 取第一个 ID 对应的标题
+        first_title = ""
+        if t.video_ids:
+            try:
+                ids = json.loads(t.video_ids)
+                if isinstance(ids, list) and ids:
+                    first_title = video_title_map.get(int(ids[0]), "")[:20]
+            except (ValueError, TypeError):
+                pass
+
         if t.task_type == "crawl":
-            video_title = first_video_map.get(t.keyword_id, "")
-            short_title = video_title[:20] if video_title else ""
-            if count > 0 and short_title:
-                summaries[t.id] = f"爬取了「{short_title}」等 {count} 个视频"
+            if count > 0 and first_title:
+                summaries[t.id] = f"爬取了「{first_title}」等 {count} 个视频"
             elif count > 0:
-                summaries[t.id] = f"爬取关键词「{kw_name}」,共 {count} 个视频"
+                # 兜底:用 keyword 下最新视频
+                fallback = first_video_map.get(t.keyword_id, "")[:20]
+                if fallback:
+                    summaries[t.id] = f"爬取了「{fallback}」等 {count} 个视频"
+                else:
+                    summaries[t.id] = f"爬取关键词「{kw_name}」,共 {count} 个视频"
             else:
                 summaries[t.id] = f"爬取关键词「{kw_name}」"
         elif t.task_type == "update":
-            # 优先用 video_id 查精确标题
-            if t.video_id and t.video_id in video_title_map:
-                title = video_title_map[t.video_id][:20]
-                if title:
-                    summaries[t.id] = f"更新了「{title}」"
-                else:
-                    summaries[t.id] = f"更新了关键词「{kw_name}」下 1 个视频"
+            if first_title:
+                summaries[t.id] = f"更新了「{first_title}」"
             elif count == 1:
                 summaries[t.id] = f"更新了关键词「{kw_name}」下 1 个视频"
             elif count > 1:

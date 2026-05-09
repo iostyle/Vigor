@@ -8,7 +8,7 @@ class CrawlTask(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     keyword_id = Column(Integer, ForeignKey("keywords.id"))
-    video_id = Column(Integer, ForeignKey("videos.id"), nullable=True)
+    video_ids = Column(Text)
     task_type = Column(String(50))
     status = Column(String(20))
     videos_crawled = Column(Integer, default=0)
