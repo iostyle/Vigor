@@ -184,7 +184,7 @@ const props = defineProps<{
 
 const originalUrl = computed(() => {
   if (!props.video) return '#'
-  return props.video.video_url || `https://www.douyin.com/video/${props.video.douyin_id}`
+  return props.video.video_url || '#'
 })
 
 const heatInfo = computed(() => formatHeatScore(props.video?.heat_score ?? null))

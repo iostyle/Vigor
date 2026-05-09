@@ -5,6 +5,11 @@ export interface CrawlTaskTriggerRequest {
   platform: string
 }
 
+export interface UpdateTaskTriggerRequest {
+  video_id?: number
+  keyword_id?: number
+}
+
 export interface CrawlTaskResponse {
   task_id: number
   celery_task_id: string
@@ -25,6 +30,10 @@ export interface Task {
 export const taskApi = {
   triggerCrawl(data: CrawlTaskTriggerRequest): Promise<CrawlTaskResponse> {
     return request.post('/api/admin/tasks/crawl', data)
+  },
+
+  triggerUpdate(data: UpdateTaskTriggerRequest): Promise<CrawlTaskResponse> {
+    return request.post('/api/admin/tasks/update', data)
   },
 
   list(params?: { page?: number; page_size?: number }): Promise<Task[]> {

@@ -35,6 +35,44 @@
           </div>
         </n-form>
       </n-card>
+
+      <n-card class="trigger-card update-card" title="触发数据更新" :bordered="false">
+        <n-form class="trigger-form" :model="updateFormData" label-placement="left" label-width="80">
+          <n-form-item label="更新方式" path="mode">
+            <n-radio-group v-model:value="updateFormData.mode">
+              <n-radio value="keyword">按关键词</n-radio>
+              <n-radio value="video">按视频 ID</n-radio>
+            </n-radio-group>
+          </n-form-item>
+          <n-form-item v-if="updateFormData.mode === 'keyword'" label="关键词" path="keyword_id">
+            <n-select
+              v-model:value="updateFormData.keyword_id"
+              :options="keywordOptions"
+              placeholder="选择要更新的关键词"
+              filterable
+              :loading="loadingKeywords"
+            />
+          </n-form-item>
+          <n-form-item v-else label="视频 ID" path="video_id">
+            <n-input-number
+              v-model:value="updateFormData.video_id"
+              placeholder="输入视频 ID"
+              :min="1"
+              clearable
+            />
+          </n-form-item>
+          <div class="form-actions">
+            <button
+              type="button"
+              class="trigger-btn"
+              :disabled="updateDisabled"
+              @click="handleTriggerUpdate"
+            >
+              {{ updateTriggering ? '更新中...' : '开始更新' }}
+            </button>
+          </div>
+        </n-form>
+      </n-card>
     </div>
 
     <div class="history-section">
@@ -52,12 +90,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, h } from 'vue'
+import { ref, computed, onMounted, onUnmounted, h } from 'vue'
 import {
   NCard,
   NDataTable,
   NForm,
   NFormItem,
+  NInputNumber,
   NRadio,
   NRadioGroup,
   NSelect,
@@ -76,9 +115,22 @@ const formData = ref({
   platform: 'bilibili'
 })
 
+const updateFormData = ref({
+  mode: 'keyword' as 'keyword' | 'video',
+  keyword_id: null as number | null,
+  video_id: null as number | null
+})
+
 const keywordOptions = ref<SelectOption[]>([])
 const loadingKeywords = ref(false)
 const triggering = ref(false)
+const updateTriggering = ref(false)
+
+const updateDisabled = computed(() => {
+  if (updateTriggering.value) return true
+  if (updateFormData.value.mode === 'keyword') return !updateFormData.value.keyword_id
+  return !updateFormData.value.video_id
+})
 
 const tasks = ref<Task[]>([])
 const loadingTasks = ref(false)
@@ -115,7 +167,14 @@ const columns: DataTableColumns<Task> = [
   {
     title: '任务类型',
     key: 'task_type',
-    width: 100
+    width: 100,
+    render(row) {
+      const typeMap: Record<string, string> = {
+        crawl: '爬取',
+        update: '更新'
+      }
+      return typeMap[row.task_type] || row.task_type
+    }
   },
   {
     title: '状态',
@@ -221,6 +280,24 @@ async function handleTrigger() {
   }
 }
 
+async function handleTriggerUpdate() {
+  const payload =
+    updateFormData.value.mode === 'keyword'
+      ? { keyword_id: updateFormData.value.keyword_id! }
+      : { video_id: updateFormData.value.video_id! }
+
+  updateTriggering.value = true
+  try {
+    const res = await taskApi.triggerUpdate(payload)
+    message.success(`更新任务已触发 (Task ID: ${res.task_id})`)
+    fetchTasks()
+  } catch (error: any) {
+    message.error(error.message || '触发更新失败')
+  } finally {
+    updateTriggering.value = false
+  }
+}
+
 onMounted(() => {
   fetchKeywords()
   fetchTasks()
@@ -264,6 +341,10 @@ onUnmounted(() => {
 
 .trigger-card {
   max-width: 920px;
+}
+
+.update-card {
+  margin-top: var(--spacing-lg);
 }
 
 .trigger-form {
