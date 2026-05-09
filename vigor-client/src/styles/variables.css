@@ -46,3 +46,19 @@
   --error-color: #ff453a;
   --shadow: rgba(255, 255, 255, 0.1);
 }
+
+/* 管理后台独立暗色变量,作用域局限于 .admin-layout 内,避免与前端 [data-theme] 互相影响 */
+[data-admin-theme='dark'] {
+  --bg-primary: #000000;
+  --bg-secondary: #1c1c1e;
+  --bg-tertiary: #2c2c2e;
+  --text-primary: #ffffff;
+  --text-secondary: #ebebf5;
+  --text-tertiary: #8e8e93;
+  --border-color: #38383a;
+  --primary-color: #0a84ff;
+  --success-color: #30d158;
+  --warning-color: #ff9f0a;
+  --error-color: #ff453a;
+  --shadow: rgba(255, 255, 255, 0.1);
+}
