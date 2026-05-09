@@ -14,20 +14,61 @@
       <!-- 视频详情 -->
       <section class="section video-detail">
         <div class="video-player-container">
-          <video
-            v-if="video.video_url"
-            :poster="video.cover_url || undefined"
-            :src="video.video_url"
-            controls
+          <!-- B站:iframe 播放器 -->
+          <iframe
+            v-if="video.platform === 'bilibili' && video.external_id"
+            :src="`https://player.bilibili.com/player.html?bvid=${video.external_id}&high_quality=1&danmaku=0&autoplay=0`"
+            allowfullscreen
+            scrolling="no"
+            frameborder="0"
             class="video-player"
-          ></video>
+          ></iframe>
+
+          <!-- 抖音:封面+跳转按钮 -->
+          <div v-else-if="video.platform === 'douyin'" class="video-poster">
+            <img
+              v-if="video.cover_url"
+              :src="normalizeCover(video.cover_url)"
+              :alt="video.title"
+              referrerpolicy="no-referrer"
+            />
+            <div class="video-overlay">
+              <a
+                v-if="video.video_url"
+                :href="video.video_url"
+                target="_blank"
+                rel="noopener"
+                class="open-douyin-btn"
+              >
+                <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                <span>在抖音打开</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Fallback:封面+查看原视频 -->
           <div v-else class="video-poster">
-            <img v-if="video.cover_url" :src="video.cover_url" :alt="video.title" />
-            <div class="no-video-overlay">
-              <svg viewBox="0 0 24 24" width="64" height="64" fill="currentColor">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-              <span>暂无视频源</span>
+            <img
+              v-if="video.cover_url"
+              :src="normalizeCover(video.cover_url)"
+              :alt="video.title"
+              referrerpolicy="no-referrer"
+            />
+            <div class="video-overlay">
+              <a
+                v-if="video.video_url"
+                :href="video.video_url"
+                target="_blank"
+                rel="noopener"
+                class="open-douyin-btn"
+              >
+                <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                <span>点击查看原视频</span>
+              </a>
             </div>
           </div>
         </div>
@@ -177,6 +218,7 @@
 import { computed } from 'vue'
 import type { Video } from '@/types/video'
 import { formatNumber, formatDate, formatHeatScore, formatSentiment } from '@/utils/format'
+import { normalizeCover } from '@/utils/media'
 
 const props = defineProps<{
   video: Video | null
@@ -290,6 +332,40 @@ const sentimentInfo = computed(() =>
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.video-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.45);
+}
+
+.open-douyin-btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-xl);
+  background-color: rgba(255, 255, 255, 0.15);
+  color: white;
+  text-decoration: none;
+  border-radius: var(--radius-lg);
+  font-size: 14px;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: all var(--transition-fast);
+}
+
+.open-douyin-btn:hover {
+  background-color: rgba(255, 255, 255, 0.25);
+  transform: scale(1.04);
 }
 
 .no-video-overlay {
@@ -623,8 +699,9 @@ const sentimentInfo = computed(() =>
     gap: var(--spacing-md);
   }
 
-  .video-cover {
+  .video-player-container {
     flex: 0 0 auto;
+    width: 100%;
   }
 
   .video-title {

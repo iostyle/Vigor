@@ -3,9 +3,10 @@
     <div class="cover">
       <img
         v-if="video.cover_url"
-        :src="video.cover_url"
+        :src="normalizeCover(video.cover_url)"
         :alt="video.title"
         loading="lazy"
+        referrerpolicy="no-referrer"
         @error="handleImageError"
       />
       <div v-else class="cover-placeholder">
@@ -51,6 +52,7 @@
 import { computed } from 'vue'
 import type { Video } from '@/types/video'
 import { formatNumber, formatHeatScore } from '@/utils/format'
+import { normalizeCover } from '@/utils/media'
 
 const props = defineProps<{
   video: Video
