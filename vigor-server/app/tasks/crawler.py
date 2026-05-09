@@ -1,6 +1,10 @@
 import asyncio
 import json
+import logging
+import os
+import subprocess
 from datetime import datetime
+from pathlib import Path
 
 from app.celery_app import celery_app
 from app.database import SessionLocal
@@ -11,6 +15,52 @@ from app.models.video import Video
 from app.services.heat_calculator import calculate_heat_score
 from app.services.platform_client import get_client
 from app.tasks.processor import generate_summary_task
+
+logger = logging.getLogger(__name__)
+
+# MediaCrawler browser_data 目录,用于清理锁文件
+_MC_ROOT = Path(__file__).resolve().parents[2] / "vendor_MediaCrawler"
+_BROWSER_DATA_DIRS = {
+    "bilibili": _MC_ROOT / "browser_data" / "bili_user_data_dir",
+    "douyin": _MC_ROOT / "browser_data" / "dy_user_data_dir",
+}
+_LOCK_FILES = ("SingletonLock", "SingletonCookie", "SingletonSocket")
+
+
+def cleanup_browser_locks(platform: str) -> None:
+    """清理指定平台的浏览器僵尸进程和锁文件。
+
+    在爬取任务开始前和 finally 里调用,确保:
+    1. 上次异常退出留下的锁不会阻塞本次
+    2. 本次结束后不留残余给下次
+
+    清理失败不抛异常,只 WARN 日志。
+    """
+    user_data_dir = _BROWSER_DATA_DIRS.get(platform)
+    if not user_data_dir:
+        return
+
+    dir_name = user_data_dir.name  # e.g. "bili_user_data_dir"
+
+    # 1. 杀掉引用该 user_data_dir 的 chromium 进程
+    try:
+        subprocess.run(
+            ["pkill", "-f", dir_name],
+            timeout=5,
+            capture_output=True,
+        )
+    except Exception as exc:
+        logger.warning("cleanup_browser_locks pkill 失败 (%s): %s", dir_name, exc)
+
+    # 2. 删除锁文件(可能是普通文件或 symlink)
+    for name in _LOCK_FILES:
+        lock_path = user_data_dir / name
+        try:
+            if lock_path.exists() or lock_path.is_symlink():
+                lock_path.unlink()
+                logger.info("已删除锁文件: %s", lock_path)
+        except Exception as exc:
+            logger.warning("删除锁文件失败 %s: %s", lock_path, exc)
 
 
 def _get_client_for_platform(platform: str | None):
@@ -67,6 +117,9 @@ def crawl_keyword_task(self, keyword_id: int, platform: str = "douyin", task_id:
         )
 
     try:
+        # Why: 上次异常退出可能留下锁文件,阻塞本次 Chromium 启动
+        cleanup_browser_locks(platform)
+
         keyword = db.query(Keyword).filter(Keyword.id == keyword_id).first()
         if not keyword:
             return {"status": "error", "message": f"Keyword {keyword_id} not found"}
@@ -177,6 +230,7 @@ def crawl_keyword_task(self, keyword_id: int, platform: str = "douyin", task_id:
             db.rollback()
         raise self.retry(exc=exc)
     finally:
+        cleanup_browser_locks(platform)
         db.close()
 
 
@@ -190,13 +244,17 @@ def crawl_keyword_task(self, keyword_id: int, platform: str = "douyin", task_id:
 def crawl_video_comments(self, video_id: int):
     """重新爬取指定视频的热门评论(由 updater 在评论增长 >20% 时触发)"""
     db = SessionLocal()
+    platform = "douyin"
     try:
         video = db.query(Video).filter(Video.id == video_id).first()
         if not video:
             return {"status": "error", "message": f"Video {video_id} not found"}
 
+        platform = video.platform or "douyin"
+        cleanup_browser_locks(platform)
+
         # Why: platform 直接从 video 取,video 上已经存了归属平台
-        client = _get_client_for_platform(video.platform)
+        client = _get_client_for_platform(platform)
         raw_comments = asyncio.run(
             client.get_comments(video.external_id, limit=50, sort_by="like")
         )
@@ -232,6 +290,7 @@ def crawl_video_comments(self, video_id: int):
         db.rollback()
         raise self.retry(exc=exc)
     finally:
+        cleanup_browser_locks(platform)
         db.close()
 
 
