@@ -36,15 +36,19 @@ def list_videos(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ) -> VideoListResponse:
-    query = db.query(Video)
+    # Why: 过滤非 active 关键词(如 deleted)下的视频。统一在最外层 join,
+    # 避免 category_id 分支重复 join 触发 SQLAlchemy 'already joined' 错误
+    query = (
+        db.query(Video)
+        .join(Keyword, Video.keyword_id == Keyword.id)
+        .filter(Keyword.status == "active")
+    )
 
     if keyword_id is not None:
         query = query.filter(Video.keyword_id == keyword_id)
 
     if category_id is not None:
-        query = query.join(Keyword, Video.keyword_id == Keyword.id).filter(
-            Keyword.category_id == category_id
-        )
+        query = query.filter(Keyword.category_id == category_id)
 
     if platform is not None:
         query = query.filter(Video.platform == platform)

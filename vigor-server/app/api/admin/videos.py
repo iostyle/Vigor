@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_db, verify_api_key
 from app.models.comment import CommentSummary
+from app.models.keyword import Keyword
 from app.models.video import Video
 from app.schemas.video import VideoListResponse, VideoResponse
 
@@ -78,7 +79,12 @@ def list_videos(
     order: SortOrder = Query("desc"),
     db: Session = Depends(get_db),
 ) -> VideoListResponse:
-    query = db.query(Video)
+    # Why: 过滤掉非 active 关键词(如 deleted)下的视频,用户不希望看到
+    query = (
+        db.query(Video)
+        .join(Keyword, Video.keyword_id == Keyword.id)
+        .filter(Keyword.status == "active")
+    )
 
     if keyword_id is not None:
         query = query.filter(Video.keyword_id == keyword_id)
