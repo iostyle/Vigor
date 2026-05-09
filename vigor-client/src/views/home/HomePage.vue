@@ -3,21 +3,14 @@
     <TopNavBar
       :categories="categoryStore.categories"
       :active-category-id="categoryStore.activeCategoryId"
+      :show-sidebar-toggle="!isMobile"
+      :sidebar-collapsed="sidebarCollapsed"
       @change-category="handleCategoryChange"
+      @toggle-sidebar="toggleSidebar"
     />
 
     <div class="main-content" :class="{ 'mobile-detail': isMobile && videoStore.selectedVideo }">
       <div class="list-panel" :class="{ collapsed: sidebarCollapsed }">
-        <button
-          v-if="!isMobile"
-          class="sidebar-toggle"
-          :title="sidebarCollapsed ? '展开列表' : '收起列表'"
-          @click="toggleSidebar"
-        >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" :class="{ 'icon-flipped': sidebarCollapsed }">
-            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
-          </svg>
-        </button>
         <VideoList
           v-show="!sidebarCollapsed"
           :videos="videoStore.videos"
@@ -159,38 +152,6 @@ onUnmounted(() => {
   min-width: 48px;
 }
 
-.sidebar-toggle {
-  position: absolute;
-  top: 16px;
-  right: -12px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 10;
-  color: var(--text-secondary);
-  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
-}
-
-.sidebar-toggle:hover {
-  background: var(--bg-secondary);
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-}
-
-.sidebar-toggle svg {
-  transition: transform 0.3s ease;
-}
-
-.sidebar-toggle .icon-flipped {
-  transform: rotate(180deg);
-}
-
 .dashboard-panel {
   flex: 1;
   overflow: hidden;
@@ -227,10 +188,6 @@ onUnmounted(() => {
     flex: 1;
     max-width: none;
     min-width: 0;
-  }
-
-  .sidebar-toggle {
-    display: none;
   }
 
   .dashboard-panel {
