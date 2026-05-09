@@ -17,6 +17,16 @@ def _get_doubao_client() -> DoubaoClient:
     )
 
 
+def _load_top_comments(db, video_id: int) -> list[Comment]:
+    return (
+        db.query(Comment)
+        .filter(Comment.video_id == video_id)
+        .order_by(Comment.like_count.desc())
+        .limit(50)
+        .all()
+    )
+
+
 @celery_app.task(
     name="app.tasks.processor.generate_summary",
     queue="processor",
@@ -25,20 +35,38 @@ def _get_doubao_client() -> DoubaoClient:
     default_retry_delay=30,
 )
 def generate_summary_task(self, video_id: int):
-    """为指定视频生成摘要(视频摘要 + 评论摘要)"""
+    """为指定视频生成摘要(视频摘要 + 评论摘要)。
+
+    如果 DB 里没有评论但 video.comment_count > 0(即平台上有评论、只是我们还没抓),
+    先同步等一次 crawl_video_comments 把评论补到库里,再生成摘要。
+    """
     db = SessionLocal()
     try:
         video = db.query(Video).filter(Video.id == video_id).first()
         if not video:
             return {"status": "error", "message": f"Video {video_id} not found"}
 
-        comments = (
-            db.query(Comment)
-            .filter(Comment.video_id == video_id)
-            .order_by(Comment.like_count.desc())
-            .limit(50)
-            .all()
-        )
+        comments = _load_top_comments(db, video_id)
+
+        # Why: 用户在详情页点"生成摘要"时,如果评论还没入库会什么都不发生
+        # 这里先补抓一次,爬完再走后续摘要生成。crawl 失败也继续走(只是没评论而已)
+        if not comments and (video.comment_count or 0) > 0:
+            # 延迟 import,避免循环依赖
+            from app.tasks.crawler import crawl_video_comments
+
+            crawl_result = crawl_video_comments.apply_async(
+                args=(video_id,), queue="crawler"
+            )
+            try:
+                # disable_sync_subtasks=False:允许在 task 内等子 task
+                # 我们用独立 queue + 足够并发,不会死锁
+                crawl_result.get(timeout=60, disable_sync_subtasks=False)
+            except Exception:
+                # 超时或失败都不阻断,后面再次查评论,可能有也可能没有
+                pass
+
+            db.expire_all()
+            comments = _load_top_comments(db, video_id)
 
         client = _get_doubao_client()
 
