@@ -6,7 +6,7 @@
         <select v-model="platform" class="select" @change="handlePlatformChange">
           <option value="">全部</option>
           <option value="dy">抖音</option>
-          <option value="bili">B站</option>
+          <option value="bilibili">B站</option>
         </select>
         <select v-model="sortBy" class="select" @change="handleSortChange">
           <option value="heat_score">按热度</option>
