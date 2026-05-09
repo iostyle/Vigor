@@ -166,14 +166,39 @@
             <span class="generated-at">
               生成于 {{ generatedAtText }}
             </span>
-            <button
-              type="button"
-              class="regenerate-btn"
-              :disabled="generating"
-              @click="handleGenerateSummary"
-            >
-              {{ generating ? '生成中...' : '重新生成' }}
-            </button>
+            <div class="summary-actions">
+              <button
+                type="button"
+                class="toggle-btn"
+                @click="toggleComments"
+              >
+                {{ showComments ? '收起评论' : '查看评论' }}
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" :class="{ 'icon-flipped': showComments }">
+                  <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="regenerate-btn"
+                :disabled="generating"
+                @click="handleGenerateSummary"
+              >
+                {{ generating ? '生成中...' : '重新生成' }}
+              </button>
+            </div>
+          </div>
+          <div v-if="showComments" class="comments-list">
+            <div v-if="loadingComments" class="comments-state">加载中...</div>
+            <div v-else-if="comments.length === 0" class="comments-state">暂无评论</div>
+            <div v-else class="comment-items">
+              <div v-for="comment in comments" :key="comment.id" class="comment-item">
+                <div class="comment-header">
+                  <span class="comment-author">{{ comment.author_name || '匿名' }}</span>
+                  <span class="comment-likes">👍 {{ formatNumber(comment.like_count) }}</span>
+                </div>
+                <p class="comment-content">{{ comment.content }}</p>
+              </div>
+            </div>
           </div>
         </div>
         <div v-else-if="video.comment_count > 0" class="generate-summary">
@@ -244,7 +269,7 @@
 <script setup lang="ts">
 import { computed, ref, onUnmounted } from 'vue'
 import { useMessage } from 'naive-ui'
-import type { Video } from '@/types/video'
+import type { Video, Comment } from '@/types/video'
 import { videoApi } from '@/api/video'
 import { formatNumber, formatDate, formatHeatScore, formatSentiment } from '@/utils/format'
 import { normalizeCover } from '@/utils/media'
@@ -261,6 +286,29 @@ const emit = defineEmits<{
 
 const generating = ref(false)
 let pollTimer: number | null = null
+
+const showComments = ref(false)
+const comments = ref<Comment[]>([])
+const loadingComments = ref(false)
+
+async function toggleComments() {
+  showComments.value = !showComments.value
+  if (showComments.value && comments.value.length === 0) {
+    await loadComments()
+  }
+}
+
+async function loadComments() {
+  if (!props.video?.id) return
+  loadingComments.value = true
+  try {
+    comments.value = await videoApi.getComments(props.video.id, { limit: 50 })
+  } catch {
+    message.error('加载评论失败')
+  } finally {
+    loadingComments.value = false
+  }
+}
 
 function stopPolling() {
   if (pollTimer !== null) {
@@ -785,6 +833,87 @@ const generatedAtText = computed(() => {
 .regenerate-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.summary-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.toggle-btn {
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toggle-btn:hover {
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+  background: rgba(0, 122, 255, 0.05);
+}
+
+.toggle-btn .icon-flipped {
+  transform: rotate(180deg);
+}
+
+.comments-list {
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.comments-state {
+  padding: var(--spacing-md);
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.comment-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.comment-item {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.comment-author {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.comment-likes {
+  color: var(--text-tertiary);
+}
+
+.comment-content {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  margin: 0;
+  word-break: break-word;
 }
 
 .ai-analysis {
