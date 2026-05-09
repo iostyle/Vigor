@@ -81,8 +81,12 @@ onMounted(async () => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
   await categoryStore.fetchCategories()
+  // fetchCategories 后 activeCategoryId 已经是真实 ID,现在才设置
   if (categoryStore.activeCategoryId) {
     videoStore.setCategoryId(categoryStore.activeCategoryId)
+  } else {
+    // 如果没有领域,直接拉全部视频
+    videoStore.fetchVideos()
   }
 })
 
