@@ -30,11 +30,12 @@ export interface CommentSummary {
 
 export interface Comment {
   id: number
-  video_id: number
+  video_id?: number
   content: string
   author_name: string | null
   like_count: number
-  created_at: string
+  publish_time?: string | null
+  created_at?: string
 }
 
 export interface VideoListParams {

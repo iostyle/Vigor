@@ -186,7 +186,12 @@
             <div v-else class="comment-items">
               <div v-for="comment in comments" :key="comment.id" class="comment-item">
                 <div class="comment-header">
-                  <span class="comment-author">{{ comment.author_name || '匿名' }}</span>
+                  <div class="comment-meta">
+                    <span class="comment-author">{{ comment.author_name || '匿名' }}</span>
+                    <span v-if="comment.publish_time" class="comment-time">
+                      {{ formatDate(comment.publish_time) }}
+                    </span>
+                  </div>
                   <span class="comment-likes">👍 {{ formatNumber(comment.like_count) }}</span>
                 </div>
                 <p class="comment-content">{{ comment.content }}</p>
@@ -921,9 +926,20 @@ const generatedAtText = computed(() => {
   font-size: 12px;
 }
 
+.comment-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .comment-author {
   color: var(--text-secondary);
   font-weight: 500;
+}
+
+.comment-time {
+  color: var(--text-tertiary);
+  font-size: 11px;
 }
 
 .comment-likes {
