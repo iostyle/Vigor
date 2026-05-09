@@ -31,6 +31,26 @@ def _require_category(db: Session, category_id: int) -> Category:
 @router.post("", response_model=KeywordResponse, status_code=status.HTTP_201_CREATED)
 def create_keyword(payload: KeywordCreate, db: DbSession) -> Keyword:
     _require_category(db, payload.category_id)
+
+    existing = (
+        db.query(Keyword)
+        .filter(
+            Keyword.category_id == payload.category_id,
+            Keyword.keyword == payload.keyword,
+        )
+        .first()
+    )
+    if existing is not None:
+        if existing.status == "deleted":
+            existing.status = "active"
+            existing.crawl_threshold = payload.crawl_threshold
+            existing.priority = payload.priority
+            db.add(existing)
+            db.commit()
+            db.refresh(existing)
+            return existing
+        return existing
+
     keyword = Keyword(
         category_id=payload.category_id,
         keyword=payload.keyword,
