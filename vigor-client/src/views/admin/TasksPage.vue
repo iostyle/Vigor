@@ -10,8 +10,8 @@
         <n-form class="trigger-form" :model="formData" label-placement="left" label-width="80">
           <n-form-item label="爬取方式" path="mode">
             <n-radio-group v-model:value="formData.mode">
-              <n-radio value="keyword">按关键词</n-radio>
               <n-radio value="category">按领域</n-radio>
+              <n-radio value="keyword">按关键词</n-radio>
             </n-radio-group>
           </n-form-item>
           <n-form-item v-if="formData.mode === 'keyword'" label="关键词" path="keyword_id">
@@ -55,8 +55,8 @@
         <n-form class="trigger-form" :model="updateFormData" label-placement="left" label-width="80">
           <n-form-item label="更新方式" path="mode">
             <n-radio-group v-model:value="updateFormData.mode">
-              <n-radio value="keyword">按关键词</n-radio>
               <n-radio value="category">按领域</n-radio>
+              <n-radio value="keyword">按关键词</n-radio>
               <n-radio value="video">按视频 ID</n-radio>
             </n-radio-group>
           </n-form-item>
@@ -119,6 +119,7 @@
     <div class="history-section">
       <n-card title="爬取历史" :bordered="false">
         <n-data-table
+          remote
           :columns="columns"
           :data="tasks"
           :loading="loadingTasks"
@@ -153,14 +154,14 @@ import type { Keyword } from '@/types/keyword'
 const message = useMessage()
 
 const formData = ref({
-  mode: 'keyword' as 'keyword' | 'category',
+  mode: 'category' as 'keyword' | 'category',
   keyword_id: null as number | null,
   category_id: null as number | null,
   platform: 'bilibili'
 })
 
 const updateFormData = ref({
-  mode: 'keyword' as 'keyword' | 'category' | 'video',
+  mode: 'category' as 'keyword' | 'category' | 'video',
   keyword_id: null as number | null,
   category_id: null as number | null,
   video_id: null as number | null,
