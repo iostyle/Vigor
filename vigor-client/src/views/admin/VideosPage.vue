@@ -36,6 +36,7 @@
 
     <n-card :bordered="false">
       <n-data-table
+        remote
         :columns="columns"
         :data="videos"
         :loading="loading"
@@ -47,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, h } from 'vue'
+import { ref, reactive, onMounted, h } from 'vue'
 import { NCard, NSpace, NSelect, NDatePicker, NDataTable, NTag, NButton, useMessage } from 'naive-ui'
 import type { DataTableColumns, SelectOption } from 'naive-ui'
 import { videoApi, type Video } from '@/api/video'
@@ -71,19 +72,19 @@ const platformOptions: SelectOption[] = [
 
 const keywordOptions = ref<SelectOption[]>([])
 
-const pagination = ref({
+const pagination = reactive({
   page: 1,
   pageSize: 20,
   showSizePicker: true,
   pageSizes: [10, 20, 50, 100],
   itemCount: 0,
   onChange: (page: number) => {
-    pagination.value.page = page
+    pagination.page = page
     fetchVideos()
   },
   onUpdatePageSize: (pageSize: number) => {
-    pagination.value.pageSize = pageSize
-    pagination.value.page = 1
+    pagination.pageSize = pageSize
+    pagination.page = 1
     fetchVideos()
   }
 })
@@ -213,9 +214,9 @@ async function fetchKeywords() {
 async function fetchVideos() {
   loading.value = true
   try {
-    const offset = (pagination.value.page - 1) * pagination.value.pageSize
+    const offset = (pagination.page - 1) * pagination.pageSize
     const params: any = {
-      limit: pagination.value.pageSize,
+      limit: pagination.pageSize,
       offset
     }
 
@@ -228,7 +229,7 @@ async function fetchVideos() {
 
     const res = await videoApi.list(params)
     videos.value = res.data
-    pagination.value.itemCount = res.total
+    pagination.itemCount = res.total
   } catch (error) {
     message.error('加载视频列表失败')
   } finally {
@@ -237,7 +238,7 @@ async function fetchVideos() {
 }
 
 function handleFilterChange() {
-  pagination.value.page = 1
+  pagination.page = 1
   fetchVideos()
 }
 
