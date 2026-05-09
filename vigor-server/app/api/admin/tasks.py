@@ -441,6 +441,12 @@ def _build_task_summaries(
                 summaries[t.id] = f"更新了关键词「{kw_name}」下 {count} 个视频"
             else:
                 summaries[t.id] = f"更新关键词「{kw_name}」"
+        elif t.task_type == "summary":
+            # 大模型评论摘要任务
+            if first_title:
+                summaries[t.id] = f"生成了「{first_title}」的评论摘要"
+            else:
+                summaries[t.id] = "生成评论摘要"
         else:
             summaries[t.id] = t.task_type
 

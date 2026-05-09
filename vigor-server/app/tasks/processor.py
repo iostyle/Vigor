@@ -6,6 +6,7 @@ from app.celery_app import celery_app
 from app.config import settings
 from app.database import SessionLocal
 from app.models.comment import Comment, CommentSummary
+from app.models.task import CrawlTask
 from app.models.video import Video
 from app.services.doubao_client import DoubaoClient
 
@@ -34,16 +35,35 @@ def _load_top_comments(db, video_id: int) -> list[Comment]:
     max_retries=5,
     default_retry_delay=30,
 )
-def generate_summary_task(self, video_id: int):
+def generate_summary_task(self, video_id: int, task_id: int | None = None):
     """为指定视频生成摘要(视频摘要 + 评论摘要)。
 
-    如果 DB 里没有评论但 video.comment_count > 0(即平台上有评论、只是我们还没抓),
-    先同步等一次 crawl_video_comments 把评论补到库里,再生成摘要。
+    如果 DB 里没有评论但 video.comment_count > 0,先同步等一次
+    crawl_video_comments 把评论补到库里,再生成摘要。
+
+    task_id: 由 admin/videos.trigger_generate_summary 预创建的 CrawlTask
+    行 ID,传入时复用该行写 running/success/failed + 时间戳;自动派发
+    (比如 crawler 里完成后 .delay(video.id))不传 task_id,不创建任务行。
     """
     db = SessionLocal()
+    task_record: CrawlTask | None = None
+    if task_id is not None:
+        task_record = db.query(CrawlTask).filter(CrawlTask.id == task_id).first()
+    if task_record is not None:
+        task_record.status = "running"
+        task_record.started_at = datetime.utcnow()
+        db.add(task_record)
+        db.commit()
+
     try:
         video = db.query(Video).filter(Video.id == video_id).first()
         if not video:
+            if task_record is not None:
+                task_record.status = "failed"
+                task_record.error_message = f"Video {video_id} not found"
+                task_record.completed_at = datetime.utcnow()
+                db.add(task_record)
+                db.commit()
             return {"status": "error", "message": f"Video {video_id} not found"}
 
         comments = _load_top_comments(db, video_id)
@@ -108,11 +128,26 @@ def generate_summary_task(self, video_id: int):
                 )
                 db.add(cs)
 
+        if task_record is not None:
+            task_record.status = "success"
+            task_record.videos_crawled = 1
+            task_record.completed_at = datetime.utcnow()
+            db.add(task_record)
+
         db.commit()
         return {"status": "success", "video_id": video_id}
 
     except Exception as exc:
         db.rollback()
+        if task_record is not None:
+            try:
+                task_record.status = "failed"
+                task_record.error_message = str(exc)[:500]
+                task_record.completed_at = datetime.utcnow()
+                db.add(task_record)
+                db.commit()
+            except Exception:
+                db.rollback()
         raise self.retry(exc=exc)
     finally:
         db.close()

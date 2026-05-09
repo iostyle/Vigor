@@ -154,19 +154,34 @@ def trigger_generate_summary(
     video_id: int,
     db: Session = Depends(get_db),
 ) -> dict:
-    """手动触发视频评论摘要生成,派发到 processor 队列。"""
+    """手动触发视频评论摘要生成,落 CrawlTask 行 + 派发 Celery。"""
     video = db.query(Video).filter(Video.id == video_id).first()
     if video is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Video not found"
         )
 
-    # Why: 延迟 import 避免在 FastAPI 启动时触发 celery task 模块重入
+    # Why: 在任务历史里能看到摘要生成任务,沿用 CrawlTask 表
+    import json
+    from app.models.task import CrawlTask
+
+    task = CrawlTask(
+        keyword_id=video.keyword_id,
+        video_ids=json.dumps([video_id]),
+        task_type="summary",
+        status="pending",
+        videos_crawled=0,
+        started_at=datetime.utcnow(),
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+
     from app.tasks.processor import generate_summary_task
 
-    result = generate_summary_task.delay(video_id)
+    result = generate_summary_task.delay(video_id, task.id)
     return {
-        "task_id": video_id,
+        "task_id": task.id,
         "celery_task_id": result.id,
         "status": "pending",
     }
