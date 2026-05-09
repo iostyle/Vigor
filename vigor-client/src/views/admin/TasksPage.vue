@@ -8,13 +8,28 @@
     <div class="trigger-section">
       <n-card class="trigger-card" title="触发新爬取" :bordered="false">
         <n-form class="trigger-form" :model="formData" label-placement="left" label-width="80">
-          <n-form-item label="关键词" path="keyword_id">
+          <n-form-item label="爬取方式" path="mode">
+            <n-radio-group v-model:value="formData.mode">
+              <n-radio value="keyword">按关键词</n-radio>
+              <n-radio value="category">按领域</n-radio>
+            </n-radio-group>
+          </n-form-item>
+          <n-form-item v-if="formData.mode === 'keyword'" label="关键词" path="keyword_id">
             <n-select
               v-model:value="formData.keyword_id"
               :options="keywordOptions"
               placeholder="选择要爬取的关键词"
               filterable
               :loading="loadingKeywords"
+            />
+          </n-form-item>
+          <n-form-item v-else label="领域" path="category_id">
+            <n-select
+              v-model:value="formData.category_id"
+              :options="categoryOptions"
+              placeholder="选择要爬取的领域"
+              filterable
+              :loading="loadingCategories"
             />
           </n-form-item>
           <n-form-item label="平台" path="platform">
@@ -27,7 +42,7 @@
             <button
               type="button"
               class="trigger-btn"
-              :disabled="!formData.keyword_id || triggering"
+              :disabled="triggerDisabled"
               @click="handleTrigger"
             >
               {{ triggering ? '爬取中...' : '开始爬取' }}
@@ -41,6 +56,7 @@
           <n-form-item label="更新方式" path="mode">
             <n-radio-group v-model:value="updateFormData.mode">
               <n-radio value="keyword">按关键词</n-radio>
+              <n-radio value="category">按领域</n-radio>
               <n-radio value="video">按视频 ID</n-radio>
             </n-radio-group>
           </n-form-item>
@@ -53,7 +69,32 @@
               :loading="loadingKeywords"
             />
           </n-form-item>
-          <n-form-item v-else label="视频 ID" path="video_id">
+          <n-form-item v-if="updateFormData.mode === 'keyword'" label="更新数量" path="keyword_limit">
+            <n-input-number
+              v-model:value="updateFormData.keyword_limit"
+              :min="1"
+              :max="500"
+              placeholder="默认 20 条"
+            />
+          </n-form-item>
+          <n-form-item v-if="updateFormData.mode === 'category'" label="领域" path="category_id">
+            <n-select
+              v-model:value="updateFormData.category_id"
+              :options="categoryOptions"
+              placeholder="选择要更新的领域"
+              filterable
+              :loading="loadingCategories"
+            />
+          </n-form-item>
+          <n-form-item v-if="updateFormData.mode === 'category'" label="更新数量" path="category_limit">
+            <n-input-number
+              v-model:value="updateFormData.category_limit"
+              :min="1"
+              :max="1000"
+              placeholder="默认 100 条"
+            />
+          </n-form-item>
+          <n-form-item v-if="updateFormData.mode === 'video'" label="视频 ID" path="video_id">
             <n-input-number
               v-model:value="updateFormData.video_id"
               placeholder="输入视频 ID"
@@ -105,30 +146,45 @@ import {
 } from 'naive-ui'
 import type { DataTableColumns, SelectOption } from 'naive-ui'
 import { keywordApi } from '@/api/keyword'
+import { categoryApi, type Category } from '@/api/category'
 import { taskApi, type Task } from '@/api/task'
 import type { Keyword } from '@/types/keyword'
 
 const message = useMessage()
 
 const formData = ref({
+  mode: 'keyword' as 'keyword' | 'category',
   keyword_id: null as number | null,
+  category_id: null as number | null,
   platform: 'bilibili'
 })
 
 const updateFormData = ref({
-  mode: 'keyword' as 'keyword' | 'video',
+  mode: 'keyword' as 'keyword' | 'category' | 'video',
   keyword_id: null as number | null,
-  video_id: null as number | null
+  category_id: null as number | null,
+  video_id: null as number | null,
+  keyword_limit: 20,
+  category_limit: 100
 })
 
 const keywordOptions = ref<SelectOption[]>([])
 const loadingKeywords = ref(false)
+const categoryOptions = ref<SelectOption[]>([])
+const loadingCategories = ref(false)
 const triggering = ref(false)
 const updateTriggering = ref(false)
+
+const triggerDisabled = computed(() => {
+  if (triggering.value) return true
+  if (formData.value.mode === 'keyword') return !formData.value.keyword_id
+  return !formData.value.category_id
+})
 
 const updateDisabled = computed(() => {
   if (updateTriggering.value) return true
   if (updateFormData.value.mode === 'keyword') return !updateFormData.value.keyword_id
+  if (updateFormData.value.mode === 'category') return !updateFormData.value.category_id
   return !updateFormData.value.video_id
 })
 
@@ -237,6 +293,21 @@ async function fetchKeywords() {
   }
 }
 
+async function fetchCategories() {
+  loadingCategories.value = true
+  try {
+    const res = await categoryApi.adminList()
+    categoryOptions.value = res.map((c: Category) => ({
+      label: `${c.name} (${c.keyword_count}个关键词)`,
+      value: c.id
+    }))
+  } catch {
+    message.error('加载领域失败')
+  } finally {
+    loadingCategories.value = false
+  }
+}
+
 async function fetchTasks(showLoading = true) {
   if (showLoading) {
     loadingTasks.value = true
@@ -246,8 +317,8 @@ async function fetchTasks(showLoading = true) {
       page: pagination.value.page,
       page_size: pagination.value.pageSize
     })
-    tasks.value = res
-    pagination.value.itemCount = res.length
+    tasks.value = res.data
+    pagination.value.itemCount = res.total
   } catch {
     if (showLoading) {
       message.error('加载任务历史失败')
@@ -260,18 +331,21 @@ async function fetchTasks(showLoading = true) {
 }
 
 async function handleTrigger() {
-  if (!formData.value.keyword_id) {
-    message.warning('请选择关键词')
-    return
-  }
-
   triggering.value = true
   try {
-    const res = await taskApi.triggerCrawl({
-      keyword_id: formData.value.keyword_id,
-      platform: formData.value.platform
-    })
-    message.success(`爬取任务已触发 (Task ID: ${res.task_id})`)
+    if (formData.value.mode === 'keyword') {
+      const res = await taskApi.triggerCrawl({
+        keyword_id: formData.value.keyword_id!,
+        platform: formData.value.platform
+      })
+      message.success(`爬取任务已触发 (Task ID: ${res.task_id})`)
+    } else {
+      const res = await taskApi.triggerCrawlByCategory({
+        category_id: formData.value.category_id!,
+        platform: formData.value.platform
+      })
+      message.success(`已触发 ${res.keyword_count} 个关键词的爬取任务`)
+    }
     fetchTasks()
   } catch (error: any) {
     message.error(error.message || '触发爬取失败')
@@ -281,15 +355,27 @@ async function handleTrigger() {
 }
 
 async function handleTriggerUpdate() {
-  const payload =
-    updateFormData.value.mode === 'keyword'
-      ? { keyword_id: updateFormData.value.keyword_id! }
-      : { video_id: updateFormData.value.video_id! }
-
   updateTriggering.value = true
   try {
-    const res = await taskApi.triggerUpdate(payload)
-    message.success(`更新任务已触发 (Task ID: ${res.task_id})`)
+    if (updateFormData.value.mode === 'keyword') {
+      const res = await taskApi.triggerUpdate({
+        keyword_id: updateFormData.value.keyword_id!,
+        limit: updateFormData.value.keyword_limit
+      })
+      const count = res.video_count ?? 1
+      message.success(`已触发 ${count} 个视频的更新任务`)
+    } else if (updateFormData.value.mode === 'category') {
+      const res = await taskApi.triggerUpdateByCategory({
+        category_id: updateFormData.value.category_id!,
+        limit: updateFormData.value.category_limit
+      })
+      message.success(`已触发 ${res.video_count} 个视频的更新任务`)
+    } else {
+      const res = await taskApi.triggerUpdate({
+        video_id: updateFormData.value.video_id!
+      })
+      message.success(`更新任务已触发 (Task ID: ${res.task_id ?? '-'})`)
+    }
     fetchTasks()
   } catch (error: any) {
     message.error(error.message || '触发更新失败')
@@ -300,6 +386,7 @@ async function handleTriggerUpdate() {
 
 onMounted(() => {
   fetchKeywords()
+  fetchCategories()
   fetchTasks()
   pollingTimer = window.setInterval(() => {
     fetchTasks(false)
