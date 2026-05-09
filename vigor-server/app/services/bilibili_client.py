@@ -23,6 +23,12 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import httpx
+
+import httpx
+
+import httpx
+
 logger = logging.getLogger(__name__)
 
 # ---------- aid ↔ BV 号转换 ----------
@@ -228,7 +234,84 @@ class BilibiliClient:
                 "publish_time": publish_time.isoformat(),
             }
 
-        raise NotImplementedError("B 站真实详情接口暂未接入")
+        return await self._fetch_real_video_detail(video_id)
+
+    async def _fetch_real_video_detail(self, video_id: str) -> dict:
+        """走 B 站 web 接口 /x/web-interface/view 拉视频详情(stat 字段)。
+
+        external_id 兼容三种输入:BV 号 / 纯数字 aid / `av<num>`。
+        失败抛 RuntimeError,让 Celery retry 生效。
+        """
+        # Why: 老数据可能是 aid,需要先转 BV
+        bvid = self._coerce_to_bvid(video_id)
+
+        url = "https://api.bilibili.com/x/web-interface/view"
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Referer": "https://www.bilibili.com/",
+            "Accept": "application/json, text/plain, */*",
+        }
+        params = {"bvid": bvid}
+
+        proxy = self.http_proxy or None
+        try:
+            async with self._semaphore:
+                async with httpx.AsyncClient(
+                    timeout=10.0, proxy=proxy, follow_redirects=True
+                ) as client:
+                    resp = await client.get(url, params=params, headers=headers)
+                    resp.raise_for_status()
+                    payload = resp.json()
+        except httpx.HTTPError as exc:
+            raise RuntimeError(
+                f"BilibiliClient.get_video_detail({video_id}) HTTP 失败: {exc}"
+            ) from exc
+
+        if not isinstance(payload, dict) or payload.get("code") != 0:
+            raise RuntimeError(
+                f"BilibiliClient.get_video_detail({video_id}) 返回非 0 code: "
+                f"{payload!r}"[:500]
+            )
+
+        data = payload.get("data") or {}
+        stat = data.get("stat") or {}
+
+        owner = data.get("owner") or {}
+        # bvid 优先用接口返回的真实值,避免转换失误时还回错的
+        out_bvid = data.get("bvid") or bvid
+
+        return {
+            "external_id": out_bvid,
+            "title": data.get("title") or "",
+            "author_name": owner.get("name") or "",
+            "author_id": str(owner.get("mid") or ""),
+            "cover_url": data.get("pic") or "",
+            "video_url": f"https://www.bilibili.com/video/{out_bvid}",
+            "like_count": self._to_int(stat.get("like")),
+            "comment_count": self._to_int(stat.get("reply")),
+            "share_count": self._to_int(stat.get("share")),
+            "view_count": self._to_int(stat.get("view")),
+            "publish_time": self._timestamp_to_iso(data.get("pubdate")),
+        }
+
+    @staticmethod
+    def _coerce_to_bvid(value: str) -> str:
+        """把 BV 号 / 数字 aid / 'av<num>' 统一转成 BV 号。"""
+        s = str(value or "").strip()
+        if not s:
+            raise ValueError("empty video_id")
+        if s.startswith("BV"):
+            return s
+        if s.lower().startswith("av"):
+            s = s[2:]
+        try:
+            return av2bv(int(s))
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"无法把 video_id={value!r} 转成 BV 号: {exc}") from exc
 
     async def get_comments(
         self,
