@@ -53,7 +53,7 @@ htmlcov/
 .claude/tasks/*/.highwatermark
 .claude/teams/*/inboxes/
 
-# MediaCrawler vendor 目录(不纳入 git,用户自行 clone)
-vigor-server/vendor_MediaCrawler/
+# MediaCrawler vendor 目录已改为本地文件,纳入 git 管理
+# vigor-server/vendor_MediaCrawler/
 # MediaCrawler 的 playwright cookie / 登录态
 vigor-server/.media_crawler_cookies/
