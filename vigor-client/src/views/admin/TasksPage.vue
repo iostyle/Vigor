@@ -257,7 +257,7 @@ const columns: DataTableColumns<Task> = [
     }
   },
   {
-    title: '爬取数量',
+    title: '文件数量',
     key: 'videos_crawled',
     width: 100
   },
