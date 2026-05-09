@@ -49,7 +49,7 @@
         </div>
         <div class="stat-content">
           <div class="stat-label">今日新增</div>
-          <div class="stat-value">N/A</div>
+          <div class="stat-value">{{ todayNew }}</div>
         </div>
       </div>
     </div>
@@ -90,11 +90,13 @@
 import { ref, onMounted } from 'vue'
 import { categoryApi, type Category } from '@/api/category'
 import { videoApi } from '@/api/video'
+import { statsApi } from '@/api/stats'
 
 const categories = ref<Category[]>([])
 const totalVideos = ref(0)
 const totalKeywords = ref(0)
 const totalCategories = ref(0)
+const todayNew = ref(0)
 
 async function fetchData() {
   try {
@@ -113,8 +115,19 @@ async function fetchData() {
   }
 }
 
+async function fetchTodayStats() {
+  try {
+    const stats = await statsApi.today()
+    todayNew.value = stats.total
+  } catch (error) {
+    console.error('加载今日新增失败:', error)
+    todayNew.value = 0
+  }
+}
+
 onMounted(() => {
   fetchData()
+  fetchTodayStats()
 })
 </script>
 
