@@ -15,6 +15,8 @@
           v-show="!sidebarCollapsed"
           :videos="videoStore.videos"
           :loading="videoStore.loading"
+          :loading-more="videoStore.loadingMore"
+          :has-more="videoStore.hasMore"
           :selected-id="videoStore.selectedVideo?.id ?? null"
           :initial-platform="videoStore.currentPlatform"
           :initial-sort-by="videoStore.sortBy"
@@ -23,6 +25,7 @@
           @change-sort="handleSortChange"
           @change-time-window="handleTimeWindowChange"
           @change-platform="handlePlatformChange"
+          @load-more="handleLoadMore"
         />
       </div>
 
@@ -33,14 +36,24 @@
           </svg>
           <span>返回列表</span>
         </div>
-        <DataDashboard :video="videoStore.selectedVideo" @refresh="handleRefresh" />
+        <DataDashboard
+          :video="videoStore.selectedVideo"
+          :category="activeCategory"
+          :videos="videoStore.videos"
+          :platform="videoStore.currentPlatform"
+          :sort-by="videoStore.sortBy"
+          :time-window="videoStore.timeWindow"
+          @refresh="handleRefresh"
+          @select-video="handleVideoSelect"
+          @close="handleCloseDetail"
+        />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, onUnmounted, watch } from 'vue'
+import { computed, onMounted, ref, onUnmounted, watch } from 'vue'
 import { useCategoryStore } from '@/stores/category'
 import { useVideoStore } from '@/stores/video'
 import TopNavBar from '@/components/common/TopNavBar.vue'
@@ -54,6 +67,11 @@ const videoStore = useVideoStore()
 
 const isMobile = ref(false)
 const sidebarCollapsed = ref(localStorage.getItem(SIDEBAR_KEY) === 'true')
+const activeCategory = computed(
+  () =>
+    categoryStore.categories.find((category) => category.id === categoryStore.activeCategoryId) ??
+    null
+)
 
 watch(sidebarCollapsed, (val) => {
   try {
@@ -92,6 +110,10 @@ function handlePlatformChange(platform: string | null) {
   videoStore.setPlatform(platform)
 }
 
+function handleLoadMore() {
+  videoStore.loadMoreVideos()
+}
+
 function handleRefresh() {
   if (videoStore.selectedVideo?.id) {
     videoStore.fetchVideoDetail(videoStore.selectedVideo.id)
@@ -99,6 +121,10 @@ function handleRefresh() {
 }
 
 function handleBack() {
+  videoStore.selectedVideo = null
+}
+
+function handleCloseDetail() {
   videoStore.selectedVideo = null
 }
 
@@ -143,7 +169,10 @@ onUnmounted(() => {
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  transition: flex-basis 0.3s ease, max-width 0.3s ease, min-width 0.3s ease;
+  transition:
+    flex-basis 0.3s ease,
+    max-width 0.3s ease,
+    min-width 0.3s ease;
 }
 
 .list-panel.collapsed {

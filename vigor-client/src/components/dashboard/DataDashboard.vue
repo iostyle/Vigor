@@ -1,18 +1,31 @@
 <template>
-  <div class="dashboard">
-    <div v-if="!video" class="empty-state">
-      <div class="empty-icon">
-        <svg viewBox="0 0 24 24" width="64" height="64" fill="currentColor">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
-        </svg>
-      </div>
-      <h3>请选择一个视频查看详细数据</h3>
-      <p>点击左侧视频卡片,这里将展示完整的数据分析</p>
-    </div>
+  <div class="dashboard soft-scrollbar">
+    <DomainHomePage
+      v-if="!video"
+      :category="category"
+      :videos="videos"
+      :platform="platform"
+      :sort-by="sortBy"
+      :time-window="timeWindow"
+      @select-video="emit('selectVideo', $event)"
+    />
 
     <div v-else class="dashboard-content">
       <!-- 视频详情 -->
       <section class="section video-detail">
+        <button
+          type="button"
+          class="close-detail-btn"
+          aria-label="关闭视频详情"
+          title="关闭视频详情"
+          @click="emit('close')"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path
+              d="M18.3 5.71 12 12l6.3 6.29-1.41 1.41L10.59 13.41 4.29 19.7 2.88 18.29 9.17 12 2.88 5.71 4.29 4.3l6.3 6.29 6.3-6.29z"
+            />
+          </svg>
+        </button>
         <div class="video-player-container">
           <!-- B站:iframe 播放器 -->
           <iframe
@@ -72,6 +85,7 @@
             </div>
           </div>
         </div>
+
         <div class="video-info">
           <h1 class="video-title">
             <span
@@ -80,7 +94,9 @@
               title="B站"
             >
               <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                <path d="M18.223 3.086a1.25 1.25 0 0 1 0 1.768L17.08 5.996h1.17A3.75 3.75 0 0 1 22 9.747v7.5a3.75 3.75 0 0 1-3.75 3.75H5.75A3.75 3.75 0 0 1 2 17.247v-7.5a3.75 3.75 0 0 1 3.75-3.75h1.166L5.775 4.855a1.25 1.25 0 1 1 1.767-1.768l2.652 2.652a.984.984 0 0 1 .131.258h3.348a.984.984 0 0 1 .131-.258l2.652-2.652a1.25 1.25 0 0 1 1.768 0zM18.25 8.496H5.75a1.25 1.25 0 0 0-1.247 1.158l-.003.093v7.5c0 .659.51 1.198 1.157 1.246l.093.004h12.5a1.25 1.25 0 0 0 1.247-1.157l.003-.093v-7.5a1.25 1.25 0 0 0-1.157-1.247l-.093-.003zM8.5 11.499a1.25 1.25 0 0 1 1.25 1.25v1.25a1.25 1.25 0 1 1-2.5 0v-1.25a1.25 1.25 0 0 1 1.25-1.25zm7 0a1.25 1.25 0 0 1 1.25 1.25v1.25a1.25 1.25 0 1 1-2.5 0v-1.25a1.25 1.25 0 0 1 1.25-1.25z" />
+                <path
+                  d="M18.223 3.086a1.25 1.25 0 0 1 0 1.768L17.08 5.996h1.17A3.75 3.75 0 0 1 22 9.747v7.5a3.75 3.75 0 0 1-3.75 3.75H5.75A3.75 3.75 0 0 1 2 17.247v-7.5a3.75 3.75 0 0 1 3.75-3.75h1.166L5.775 4.855a1.25 1.25 0 1 1 1.767-1.768l2.652 2.652a.984.984 0 0 1 .131.258h3.348a.984.984 0 0 1 .131-.258l2.652-2.652a1.25 1.25 0 0 1 1.768 0zM18.25 8.496H5.75a1.25 1.25 0 0 0-1.247 1.158l-.003.093v7.5c0 .659.51 1.198 1.157 1.246l.093.004h12.5a1.25 1.25 0 0 0 1.247-1.157l.003-.093v-7.5a1.25 1.25 0 0 0-1.157-1.247l-.093-.003zM8.5 11.499a1.25 1.25 0 0 1 1.25 1.25v1.25a1.25 1.25 0 1 1-2.5 0v-1.25a1.25 1.25 0 0 1 1.25-1.25zm7 0a1.25 1.25 0 0 1 1.25 1.25v1.25a1.25 1.25 0 1 1-2.5 0v-1.25a1.25 1.25 0 0 1 1.25-1.25z"
+                />
               </svg>
             </span>
             <span
@@ -89,7 +105,9 @@
               title="抖音"
             >
               <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                <path d="M19.321 5.562a5.124 5.124 0 0 1-.443-.258 6.228 6.228 0 0 1-1.137-.966c-.849-.971-1.166-1.957-1.282-2.647h.005A3.844 3.844 0 0 1 16.4 1h-3.27v12.638c0 .17 0 .337-.007.502a5.196 5.196 0 1 1-.717-2.7 5.196 5.196 0 0 1 .717 1.13V8.275a8.42 8.42 0 0 0-7.97 1.49C3.547 11.34 2.62 13.86 2.93 16.297c.31 2.437 1.78 4.485 3.94 5.49a8.481 8.481 0 0 0 7.96-.69 8.514 8.514 0 0 0 3.79-7.061V8.275a10.354 10.354 0 0 0 6.06 1.94V6.94a6.16 6.16 0 0 1-5.36-1.378z" />
+                <path
+                  d="M19.321 5.562a5.124 5.124 0 0 1-.443-.258 6.228 6.228 0 0 1-1.137-.966c-.849-.971-1.166-1.957-1.282-2.647h.005A3.844 3.844 0 0 1 16.4 1h-3.27v12.638c0 .17 0 .337-.007.502a5.196 5.196 0 1 1-.717-2.7 5.196 5.196 0 0 1 .717 1.13V8.275a8.42 8.42 0 0 0-7.97 1.49C3.547 11.34 2.62 13.86 2.93 16.297c.31 2.437 1.78 4.485 3.94 5.49a8.481 8.481 0 0 0 7.96-.69 8.514 8.514 0 0 0 3.79-7.061V8.275a10.354 10.354 0 0 0 6.06 1.94V6.94a6.16 6.16 0 0 1-5.36-1.378z"
+                />
               </svg>
             </span>
             <span class="video-title-text">{{ video.title }}</span>
@@ -101,7 +119,9 @@
             <a class="external-link" :href="originalUrl" target="_blank" rel="noopener">
               查看原视频
               <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
+                <path
+                  d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"
+                />
               </svg>
             </a>
           </div>
@@ -156,17 +176,17 @@
             </div>
           </div>
           <div class="regenerate-summary">
-            <span class="generated-at">
-              生成于 {{ generatedAtText }}
-            </span>
+            <span class="generated-at"> 生成于 {{ generatedAtText }} </span>
             <div class="summary-actions">
-              <button
-                type="button"
-                class="toggle-btn"
-                @click="toggleComments"
-              >
+              <button type="button" class="toggle-btn" @click="toggleComments">
                 {{ showComments ? '收起评论' : '查看评论' }}
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" :class="{ 'icon-flipped': showComments }">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="12"
+                  height="12"
+                  fill="currentColor"
+                  :class="{ 'icon-flipped': showComments }"
+                >
                   <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
                 </svg>
               </button>
@@ -180,7 +200,7 @@
               </button>
             </div>
           </div>
-          <div v-if="showComments" class="comments-list">
+          <div v-if="showComments" class="comments-list soft-scrollbar">
             <div v-if="loadingComments" class="comments-state">加载中...</div>
             <div v-else-if="comments.length === 0" class="comments-state">暂无评论</div>
             <div v-else class="comment-items">
@@ -236,7 +256,6 @@
           </div>
         </div>
       </section>
-
     </div>
   </div>
 </template>
@@ -244,19 +263,28 @@
 <script setup lang="ts">
 import { computed, ref, watch, onUnmounted } from 'vue'
 import { useMessage } from 'naive-ui'
+import type { Category } from '@/api/category'
 import type { Video, Comment } from '@/types/video'
 import { videoApi } from '@/api/video'
 import { formatNumber, formatDate, formatHeatScore, formatSentiment } from '@/utils/format'
 import { normalizeCover } from '@/utils/media'
+import DomainHomePage from './DomainHomePage.vue'
 
 const message = useMessage()
 
 const props = defineProps<{
   video: Video | null
+  category: Category | null
+  videos: Video[]
+  platform: string | null
+  sortBy: 'heat_score' | 'publish_time'
+  timeWindow: '1d' | '3d' | '7d' | '15d' | '30d' | null
 }>()
 
 const emit = defineEmits<{
   (e: 'refresh'): void
+  (e: 'selectVideo', id: number): void
+  (e: 'close'): void
 }>()
 
 const generating = ref(false)
@@ -380,34 +408,6 @@ const generatedAtText = computed(() => {
   background-color: var(--bg-secondary);
 }
 
-.empty-state {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-md);
-  color: var(--text-secondary);
-  text-align: center;
-  padding: var(--spacing-xl);
-}
-
-.empty-icon {
-  color: var(--text-tertiary);
-  opacity: 0.3;
-}
-
-.empty-state h3 {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.empty-state p {
-  font-size: 14px;
-  color: var(--text-tertiary);
-}
-
 .dashboard-content {
   padding: var(--spacing-xl);
   display: flex;
@@ -442,8 +442,38 @@ const generatedAtText = computed(() => {
 }
 
 .video-detail {
+  position: relative;
   display: flex;
   gap: var(--spacing-xl);
+}
+
+.close-detail-btn {
+  position: absolute;
+  top: var(--spacing-md);
+  right: var(--spacing-md);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  background-color: color-mix(in srgb, var(--bg-primary) 88%, transparent);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast),
+    background-color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.close-detail-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-tertiary);
+  background-color: var(--bg-secondary);
+  transform: scale(1.04);
 }
 
 .video-player-container {
@@ -775,7 +805,9 @@ const generatedAtText = computed(() => {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: filter 0.15s ease, opacity 0.15s ease;
+  transition:
+    filter 0.15s ease,
+    opacity 0.15s ease;
 }
 
 .generate-btn:hover:not(:disabled) {

@@ -33,7 +33,7 @@
       <span class="hint">请确保后端服务已启动,或切换其他领域</span>
     </div>
 
-    <div v-else class="list-content">
+    <div v-else class="list-content soft-scrollbar" @scroll="handleScroll">
       <VideoCard
         v-for="video in videos"
         :key="video.id"
@@ -41,6 +41,8 @@
         :is-active="video.id === selectedId"
         @click="handleSelect(video.id)"
       />
+      <div v-if="loadingMore" class="load-more-state">加载更多...</div>
+      <div v-else-if="!hasMore" class="load-more-state muted">已加载全部</div>
     </div>
   </div>
 </template>
@@ -53,6 +55,8 @@ import VideoCard from './VideoCard.vue'
 const props = defineProps<{
   videos: Video[]
   loading: boolean
+  loadingMore?: boolean
+  hasMore?: boolean
   selectedId: number | null
   initialPlatform?: string | null
   initialSortBy?: 'heat_score' | 'publish_time'
@@ -64,6 +68,7 @@ const emit = defineEmits<{
   (e: 'change-sort', sort: 'heat_score' | 'publish_time'): void
   (e: 'change-time-window', window: '1d' | '3d' | '7d' | '15d' | '30d' | null): void
   (e: 'change-platform', platform: string | null): void
+  (e: 'load-more'): void
 }>()
 
 const sortBy = ref<'heat_score' | 'publish_time'>(props.initialSortBy || 'heat_score')
@@ -85,6 +90,15 @@ function handleTimeWindowChange() {
 
 function handlePlatformChange() {
   emit('change-platform', platform.value === '' ? null : platform.value)
+}
+
+function handleScroll(event: Event) {
+  if (!props.hasMore || props.loading || props.loadingMore) return
+  const target = event.currentTarget as HTMLElement
+  const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight
+  if (distanceToBottom < 160) {
+    emit('load-more')
+  }
 }
 </script>
 
@@ -139,6 +153,17 @@ function handlePlatformChange() {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs);
+}
+
+.load-more-state {
+  padding: var(--spacing-md);
+  color: var(--text-tertiary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.load-more-state.muted {
+  opacity: 0.72;
 }
 
 .list-state {

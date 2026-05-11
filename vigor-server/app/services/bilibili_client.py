@@ -13,6 +13,8 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import fcntl
 import hashlib
 import json
 import logging
@@ -20,16 +22,49 @@ import os
 import random
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
 
-import httpx
-
-import httpx
-
 logger = logging.getLogger(__name__)
+
+_BILI_BROWSER_DIR_NAME = "bili_user_data_dir"
+_BROWSER_LOCK_FILES = ("SingletonLock", "SingletonCookie", "SingletonSocket")
+
+
+@contextlib.contextmanager
+def _bili_profile_lock(mc_path: Path):
+    browser_data_dir = mc_path / "browser_data"
+    browser_data_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = browser_data_dir / f".{_BILI_BROWSER_DIR_NAME}.vigor.lock"
+    with open(lock_path, "w", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def _cleanup_bili_browser_locks(mc_path: Path) -> None:
+    user_data_dir = mc_path / "browser_data" / _BILI_BROWSER_DIR_NAME
+    try:
+        subprocess.run(
+            ["pkill", "-f", _BILI_BROWSER_DIR_NAME],
+            timeout=5,
+            capture_output=True,
+        )
+    except Exception as exc:
+        logger.warning("BilibiliClient 清理 Chromium 进程失败: %s", exc)
+
+    for name in _BROWSER_LOCK_FILES:
+        lock_path = user_data_dir / name
+        try:
+            if lock_path.exists() or lock_path.is_symlink():
+                lock_path.unlink()
+        except Exception as exc:
+            logger.warning("BilibiliClient 删除浏览器锁失败 %s: %s", lock_path, exc)
 
 # ---------- aid ↔ BV 号转换 ----------
 # 使用 abv-py 库进行 B站 aid 和 BV 号的互转
@@ -135,6 +170,35 @@ class BilibiliClient:
         if isinstance(value, str) and value:
             return value
         return datetime.now(timezone.utc).isoformat()
+
+    @staticmethod
+    def _new_save_data_path(mc_path: Path, prefix: str) -> Path:
+        base_dir = mc_path / "data" / "_vigor_runs"
+        base_dir.mkdir(parents=True, exist_ok=True)
+        return Path(tempfile.mkdtemp(prefix=f"{prefix}_", dir=str(base_dir)))
+
+    @staticmethod
+    def _run_locked_media_crawler(
+        cmd: list[str],
+        mc_path: Path,
+        env: dict[str, str],
+        timeout: int,
+    ) -> tuple[int, str, str]:
+        with _bili_profile_lock(mc_path):
+            _cleanup_bili_browser_locks(mc_path)
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    cwd=str(mc_path),
+                    env=env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                stdout, stderr = proc.communicate(timeout=timeout)
+                return proc.returncode, stdout, stderr
+            finally:
+                _cleanup_bili_browser_locks(mc_path)
 
     # ---------- mock ----------
 
@@ -425,16 +489,11 @@ class BilibiliClient:
                 f"MediaCrawler 未安装在 {mc_path},请设置 MEDIA_CRAWLER_PATH 环境变量"
             )
 
+        save_data_path = self._new_save_data_path(mc_path, "bili_search")
         date_str = datetime.now().strftime("%Y-%m-%d")
         # B 站 jsonl 路径在 data/bili/jsonl/
-        contents_file = mc_path / "data" / "bili" / "jsonl" / f"search_contents_{date_str}.jsonl"
-        comments_file = mc_path / "data" / "bili" / "jsonl" / f"search_comments_{date_str}.jsonl"
-
-        # 清空旧文件避免 MediaCrawler 去重导致增量为 0
-        if contents_file.exists():
-            contents_file.unlink()
-        if comments_file.exists():
-            comments_file.unlink()
+        contents_file = save_data_path / "bili" / "jsonl" / f"search_contents_{date_str}.jsonl"
+        comments_file = save_data_path / "bili" / "jsonl" / f"search_comments_{date_str}.jsonl"
 
         env = os.environ.copy()
         if self.http_proxy:
@@ -453,21 +512,13 @@ class BilibiliClient:
             "--get_comment", "true" if include_comments else "false",
             "--get_sub_comment", "false",
             "--max_comments_count_singlenotes", str(comments_per_video),
+            "--save_data_path", str(save_data_path),
         ]
 
         loop = asyncio.get_event_loop()
 
         def _run_subprocess() -> tuple[int, str, str]:
-            proc = subprocess.Popen(
-                cmd,
-                cwd=str(mc_path),
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            stdout, stderr = proc.communicate(timeout=1800)
-            return proc.returncode, stdout, stderr
+            return self._run_locked_media_crawler(cmd, mc_path, env, timeout=1800)
 
         returncode, stdout, stderr = await loop.run_in_executor(None, _run_subprocess)
         if returncode != 0:
@@ -560,12 +611,9 @@ class BilibiliClient:
                 f"MediaCrawler 未安装在 {mc_path},请设置 MEDIA_CRAWLER_PATH 环境变量"
             )
 
+        save_data_path = self._new_save_data_path(mc_path, "bili_comments")
         date_str = datetime.now().strftime("%Y-%m-%d")
-        comments_file = mc_path / "data" / "bili" / "jsonl" / f"detail_comments_{date_str}.jsonl"
-
-        # 和 search 路径一样,每次调用清空旧文件,避免 MC 去重导致新增 0 行
-        if comments_file.exists():
-            comments_file.unlink()
+        comments_file = save_data_path / "bili" / "jsonl" / f"detail_comments_{date_str}.jsonl"
 
         env = os.environ.copy()
         if self.http_proxy:
@@ -582,21 +630,13 @@ class BilibiliClient:
             "--get_comment", "true",
             "--get_sub_comment", "false",
             "--max_comments_count_singlenotes", str(limit),
+            "--save_data_path", str(save_data_path),
         ]
 
         loop = asyncio.get_event_loop()
 
         def _run_subprocess() -> tuple[int, str, str]:
-            proc = subprocess.Popen(
-                cmd,
-                cwd=str(mc_path),
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            stdout, stderr = proc.communicate(timeout=600)
-            return proc.returncode, stdout, stderr
+            return self._run_locked_media_crawler(cmd, mc_path, env, timeout=600)
 
         returncode, stdout, stderr = await loop.run_in_executor(None, _run_subprocess)
         if returncode != 0:

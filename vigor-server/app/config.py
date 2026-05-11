@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     API_KEY: str
     DOUBAO_MOCK_MODE: bool = True
+    AUTO_GENERATE_SUMMARY_AFTER_CRAWL: bool = False
     DOUYIN_MOCK_MODE: bool = True
     DOUYIN_API_BASE_URL: str = "https://api.douyin.example.com"
     DOUYIN_MAX_CONCURRENCY: int = 5

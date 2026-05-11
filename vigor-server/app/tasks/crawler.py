@@ -1,12 +1,14 @@
 import asyncio
+import contextlib
+import fcntl
 import json
 import logging
-import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
 
 from app.celery_app import celery_app
+from app.config import settings
 from app.database import SessionLocal
 from app.models.comment import Comment
 from app.models.keyword import Keyword
@@ -18,13 +20,65 @@ from app.tasks.processor import generate_summary_task
 
 logger = logging.getLogger(__name__)
 
+
+def _enqueue_summary_if_enabled(video_id: int) -> None:
+    if settings.AUTO_GENERATE_SUMMARY_AFTER_CRAWL:
+        generate_summary_task.delay(video_id)
+
 # MediaCrawler browser_data 目录,用于清理锁文件
 _MC_ROOT = Path(__file__).resolve().parents[2] / "vendor_MediaCrawler"
 _BROWSER_DATA_DIRS = {
+    "bili": _MC_ROOT / "browser_data" / "bili_user_data_dir",
     "bilibili": _MC_ROOT / "browser_data" / "bili_user_data_dir",
+    "dy": _MC_ROOT / "browser_data" / "dy_user_data_dir",
     "douyin": _MC_ROOT / "browser_data" / "dy_user_data_dir",
 }
 _LOCK_FILES = ("SingletonLock", "SingletonCookie", "SingletonSocket")
+
+
+def _normalize_platform(platform: str | None) -> str:
+    return (platform or "douyin").lower()
+
+
+def _browser_data_dir_for(platform: str | None) -> Path | None:
+    return _BROWSER_DATA_DIRS.get(_normalize_platform(platform))
+
+
+def _client_manages_browser_profile(platform: str | None) -> bool:
+    return _normalize_platform(platform) in {"bili", "bilibili"}
+
+
+@contextlib.contextmanager
+def browser_profile_lock(platform: str | None):
+    """串行化同一平台的持久化浏览器 profile 使用。"""
+    user_data_dir = _browser_data_dir_for(platform)
+    if not user_data_dir:
+        yield
+        return
+
+    user_data_dir.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = user_data_dir.parent / f".{user_data_dir.name}.vigor.lock"
+    with open(lock_path, "w", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+@contextlib.contextmanager
+def task_browser_profile_guard(platform: str | None):
+    """保护仍由任务层管理的 MediaCrawler 浏览器 profile。"""
+    if _client_manages_browser_profile(platform):
+        yield
+        return
+
+    with browser_profile_lock(platform):
+        cleanup_browser_locks(platform)
+        try:
+            yield
+        finally:
+            cleanup_browser_locks(platform)
 
 
 def cleanup_browser_locks(platform: str) -> None:
@@ -36,7 +90,7 @@ def cleanup_browser_locks(platform: str) -> None:
 
     清理失败不抛异常,只 WARN 日志。
     """
-    user_data_dir = _BROWSER_DATA_DIRS.get(platform)
+    user_data_dir = _browser_data_dir_for(platform)
     if not user_data_dir:
         return
 
@@ -65,7 +119,7 @@ def cleanup_browser_locks(platform: str) -> None:
 
 def _get_client_for_platform(platform: str | None):
     """按显式传入的 platform 参数选择具体平台 client,默认 'douyin'"""
-    return get_client(platform or "douyin")
+    return get_client(_normalize_platform(platform))
 
 
 def _parse_time(value) -> datetime | None:
@@ -77,6 +131,37 @@ def _parse_time(value) -> datetime | None:
         return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
         return None
+
+
+def _clean_text(value, default: str | None = None) -> str | None:
+    if value is None:
+        return default
+    return str(value).replace("\x00", "")
+
+
+def _clean_tags(tags) -> str:
+    return json.dumps([_clean_text(tag, "") for tag in (tags or [])], ensure_ascii=False)
+
+
+def _mark_task_running(db, task_record: CrawlTask) -> None:
+    db.add(task_record)
+    db.commit()
+
+
+def _dedupe_raw_videos(raw_videos: list[dict], platform: str) -> list[dict]:
+    """按最终入库唯一键去掉本批重复视频。"""
+    seen: set[tuple[str, str]] = set()
+    deduped: list[dict] = []
+    for item in raw_videos:
+        external_id = _clean_text(item.get("external_id"), "")
+        if not external_id:
+            continue
+        key = (_clean_text(item.get("platform") or platform, platform) or platform, external_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
 
 
 @celery_app.task(
@@ -115,102 +200,116 @@ def crawl_keyword_task(self, keyword_id: int, platform: str = "douyin", task_id:
             status="running",
             started_at=datetime.utcnow(),
         )
+    _mark_task_running(db, task_record)
 
     try:
-        # Why: 上次异常退出可能留下锁文件,阻塞本次 Chromium 启动
-        cleanup_browser_locks(platform)
+        # Why: MediaCrawler 的持久化 Chromium profile 同平台不能并发使用。
+        with task_browser_profile_guard(platform):
+            keyword = db.query(Keyword).filter(Keyword.id == keyword_id).first()
+            if not keyword:
+                return {"status": "error", "message": f"Keyword {keyword_id} not found"}
 
-        keyword = db.query(Keyword).filter(Keyword.id == keyword_id).first()
-        if not keyword:
-            return {"status": "error", "message": f"Keyword {keyword_id} not found"}
+            if keyword.status != "active":
+                return {"status": "skipped", "reason": "keyword disabled"}
 
-        if keyword.status != "active":
-            return {"status": "skipped", "reason": "keyword disabled"}
+            client = _get_client_for_platform(platform)
 
-        client = _get_client_for_platform(platform)
-
-        raw_videos = asyncio.run(
-            client.search_videos(
-                keyword.keyword,
-                time_window="30d",
-                limit=100,
-                min_heat=keyword.crawl_threshold or 1000,
-            )
-        )
-
-        existing_ids = {
-            v.external_id
-            for v in db.query(Video)
-            .filter(
-                Video.platform == platform,
-                Video.external_id.in_([r["external_id"] for r in raw_videos]),
-            )
-            .all()
-        }
-
-        saved_videos: list[Video] = []
-        for item in raw_videos:
-            if item["external_id"] in existing_ids:
-                continue
-
-            publish_time = _parse_time(item.get("publish_time"))
-            heat = None
-            if publish_time is not None:
-                heat = calculate_heat_score(
-                    item.get("like_count", 0),
-                    item.get("comment_count", 0),
-                    item.get("share_count", 0),
-                    publish_time,
+            raw_videos = asyncio.run(
+                client.search_videos(
+                    keyword.keyword,
+                    time_window="30d",
+                    limit=100,
+                    min_heat=keyword.crawl_threshold or 1000,
                 )
-
-            video = Video(
-                platform=item.get("platform", platform),
-                external_id=item["external_id"],
-                keyword_id=keyword_id,
-                title=item.get("title", ""),
-                author_name=item.get("author_name"),
-                author_id=item.get("author_id"),
-                cover_url=item.get("cover_url"),
-                video_url=item.get("video_url"),
-                like_count=item.get("like_count", 0),
-                comment_count=item.get("comment_count", 0),
-                share_count=item.get("share_count", 0),
-                publish_time=publish_time,
-                heat_score=heat,
-                last_updated_at=datetime.utcnow(),
-                tags=json.dumps(item.get("tags") or [], ensure_ascii=False),
             )
-            db.add(video)
-            saved_videos.append(video)
+            raw_videos = _dedupe_raw_videos(raw_videos, platform)
 
-        db.flush()
+            existing_ids = {
+                v.external_id
+                for v in db.query(Video)
+                .filter(
+                    Video.platform == platform,
+                    Video.external_id.in_(
+                        [_clean_text(r["external_id"], "") for r in raw_videos]
+                    ),
+                )
+                .all()
+            }
 
-        for video in saved_videos:
-            raw_comments = asyncio.run(
-                client.get_comments(video.external_id, limit=50, sort_by="like")
-            )
-            for c in raw_comments:
-                db.add(
-                    Comment(
-                        video_id=video.id,
-                        platform=c.get("platform", platform),
-                        external_comment_id=c.get("external_comment_id"),
-                        author_name=c.get("author_name"),
-                        content=c.get("content", ""),
-                        like_count=c.get("like_count", 0),
-                        publish_time=_parse_time(c.get("publish_time")),
+            saved_videos: list[Video] = []
+            for item in raw_videos:
+                external_id = _clean_text(item["external_id"], "")
+                if external_id in existing_ids:
+                    continue
+
+                publish_time = _parse_time(item.get("publish_time"))
+                heat = None
+                if publish_time is not None:
+                    heat = calculate_heat_score(
+                        item.get("like_count", 0),
+                        item.get("comment_count", 0),
+                        item.get("share_count", 0),
+                        publish_time,
                     )
+
+                video = Video(
+                    platform=_clean_text(item.get("platform", platform), platform),
+                    external_id=external_id,
+                    keyword_id=keyword_id,
+                    title=_clean_text(item.get("title"), ""),
+                    author_name=_clean_text(item.get("author_name")),
+                    author_id=_clean_text(item.get("author_id")),
+                    cover_url=_clean_text(item.get("cover_url")),
+                    video_url=_clean_text(item.get("video_url")),
+                    like_count=item.get("like_count", 0),
+                    comment_count=item.get("comment_count", 0),
+                    share_count=item.get("share_count", 0),
+                    publish_time=publish_time,
+                    heat_score=heat,
+                    last_updated_at=datetime.utcnow(),
+                    tags=_clean_tags(item.get("tags")),
                 )
+                db.add(video)
+                saved_videos.append(video)
+
+            db.flush()
+
+            for video in saved_videos:
+                try:
+                    raw_comments = asyncio.run(
+                        client.get_comments(video.external_id, limit=50, sort_by="like")
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "跳过视频评论爬取失败 video_id=%s platform=%s: %s",
+                        video.external_id,
+                        platform,
+                        exc,
+                    )
+                    continue
+                for c in raw_comments:
+                    db.add(
+                        Comment(
+                            video_id=video.id,
+                            platform=_clean_text(c.get("platform", platform), platform),
+                            external_comment_id=_clean_text(c.get("external_comment_id")),
+                            author_name=_clean_text(c.get("author_name")),
+                            content=_clean_text(c.get("content"), ""),
+                            like_count=c.get("like_count", 0),
+                            publish_time=_parse_time(c.get("publish_time")),
+                        )
+                    )
 
         task_record.videos_crawled = len(saved_videos)
         task_record.video_ids = json.dumps([v.id for v in saved_videos])
         task_record.status = "success"
+        task_record.error_message = None
         task_record.completed_at = datetime.utcnow()
         db.add(task_record)
         db.commit()
 
         for video in saved_videos:
-            generate_summary_task.delay(video.id)
+            _enqueue_summary_if_enabled(video.id)
 
         return {
             "status": "success",
@@ -230,7 +329,9 @@ def crawl_keyword_task(self, keyword_id: int, platform: str = "douyin", task_id:
             db.rollback()
         raise self.retry(exc=exc)
     finally:
-        cleanup_browser_locks(platform)
+        if not _client_manages_browser_profile(platform):
+            with browser_profile_lock(platform):
+                cleanup_browser_locks(platform)
         db.close()
 
 
@@ -251,13 +352,12 @@ def crawl_video_comments(self, video_id: int):
             return {"status": "error", "message": f"Video {video_id} not found"}
 
         platform = video.platform or "douyin"
-        cleanup_browser_locks(platform)
-
-        # Why: platform 直接从 video 取,video 上已经存了归属平台
-        client = _get_client_for_platform(platform)
-        raw_comments = asyncio.run(
-            client.get_comments(video.external_id, limit=50, sort_by="like")
-        )
+        with task_browser_profile_guard(platform):
+            # Why: platform 直接从 video 取,video 上已经存了归属平台
+            client = _get_client_for_platform(platform)
+            raw_comments = asyncio.run(
+                client.get_comments(video.external_id, limit=50, sort_by="like")
+            )
 
         existing_ids = {
             c.external_comment_id
@@ -272,10 +372,10 @@ def crawl_video_comments(self, video_id: int):
             db.add(
                 Comment(
                     video_id=video_id,
-                    platform=c.get("platform", video.platform),
-                    external_comment_id=cid,
-                    author_name=c.get("author_name"),
-                    content=c.get("content", ""),
+                    platform=_clean_text(c.get("platform", video.platform), video.platform),
+                    external_comment_id=_clean_text(cid),
+                    author_name=_clean_text(c.get("author_name")),
+                    content=_clean_text(c.get("content"), ""),
                     like_count=c.get("like_count", 0),
                     publish_time=_parse_time(c.get("publish_time")),
                 )
@@ -283,7 +383,7 @@ def crawl_video_comments(self, video_id: int):
             new_count += 1
 
         db.commit()
-        generate_summary_task.delay(video_id)
+        _enqueue_summary_if_enabled(video_id)
         return {"status": "success", "video_id": video_id, "new_comments": new_count}
 
     except Exception as exc:

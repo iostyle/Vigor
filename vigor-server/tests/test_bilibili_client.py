@@ -3,6 +3,9 @@
 验证 mock 模式的字段兼容性、Protocol 满足度、归一化静态方法。
 真实 MediaCrawler 子进程链路在此不测,留给 scripts/test_real_crawler.py。
 """
+import json as _json
+from pathlib import Path
+
 import pytest
 
 from app.services.bilibili_client import BilibiliClient
@@ -125,14 +128,43 @@ def test_normalize_bili_comment_handles_dict_content():
     assert norm["content"] == "嵌套评论"
 
 
+def test_locked_media_crawler_cleans_bili_singleton_lock(monkeypatch, tmp_path):
+    browser_dir = tmp_path / "browser_data" / "bili_user_data_dir"
+    browser_dir.mkdir(parents=True)
+    lock_path = browser_dir / "SingletonLock"
+    lock_path.write_text("locked", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "app.services.bilibili_client.subprocess.run",
+        lambda *args, **kwargs: None,
+    )
+
+    class _NoopPopen:
+        returncode = 0
+
+        def __init__(self, *args, **kwargs):
+            assert not lock_path.exists()
+
+        def communicate(self, timeout=None):
+            return "", ""
+
+    monkeypatch.setattr("app.services.bilibili_client.subprocess.Popen", _NoopPopen)
+
+    result = BilibiliClient._run_locked_media_crawler(
+        ["python", "main.py"],
+        tmp_path,
+        {},
+        timeout=1,
+    )
+
+    assert result == (0, "", "")
+    assert not lock_path.exists()
+
+
 # ---------- 真实子进程链路(无头 fake)----------
 # Stage 1 → Stage 2 的 0 结果 bug:MC 用日期共享 jsonl,第二次调用
 # 因 MC 内部去重 / 早退,新增 0 行,offset 读取返回 []。
 # 修复:每次调用用独立 --save_data_path,读取全量文件。
-
-import asyncio
-import json as _json
-from pathlib import Path
 
 
 def _make_fake_subprocess(write_contents_lines, write_comments_lines=None, returncode=0):
@@ -369,4 +401,3 @@ async def test_warns_when_zero_results(monkeypatch, tmp_path, caplog):
     assert any("0" in rec.message or "no" in rec.message.lower() or "空" in rec.message
                for rec in caplog.records), \
         "子进程 0 结果时应打 warning 日志"
-

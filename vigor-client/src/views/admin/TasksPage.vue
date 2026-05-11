@@ -52,7 +52,12 @@
       </n-card>
 
       <n-card class="trigger-card" title="触发数据更新" :bordered="false">
-        <n-form class="trigger-form" :model="updateFormData" label-placement="left" label-width="80">
+        <n-form
+          class="trigger-form"
+          :model="updateFormData"
+          label-placement="left"
+          label-width="80"
+        >
           <n-form-item label="更新方式" path="mode">
             <n-radio-group v-model:value="updateFormData.mode">
               <n-radio value="category">按领域</n-radio>
@@ -69,7 +74,11 @@
               :loading="loadingKeywords"
             />
           </n-form-item>
-          <n-form-item v-if="updateFormData.mode === 'keyword'" label="更新数量" path="keyword_limit">
+          <n-form-item
+            v-if="updateFormData.mode === 'keyword'"
+            label="更新数量"
+            path="keyword_limit"
+          >
             <n-input-number
               v-model:value="updateFormData.keyword_limit"
               :min="1"
@@ -86,7 +95,11 @@
               :loading="loadingCategories"
             />
           </n-form-item>
-          <n-form-item v-if="updateFormData.mode === 'category'" label="更新数量" path="category_limit">
+          <n-form-item
+            v-if="updateFormData.mode === 'category'"
+            label="更新数量"
+            path="category_limit"
+          >
             <n-input-number
               v-model:value="updateFormData.category_limit"
               :min="1"
@@ -125,6 +138,7 @@
           :loading="loadingTasks"
           :pagination="pagination"
           :bordered="false"
+          table-layout="fixed"
         />
       </n-card>
     </div>
@@ -139,6 +153,7 @@ import {
   NForm,
   NFormItem,
   NInputNumber,
+  NPopover,
   NRadio,
   NRadioGroup,
   NSelect,
@@ -245,7 +260,10 @@ const columns: DataTableColumns<Task> = [
     key: 'status',
     width: 100,
     render(row) {
-      const statusMap: Record<string, { type: 'success' | 'warning' | 'error' | 'info'; text: string }> = {
+      const statusMap: Record<
+        string,
+        { type: 'success' | 'warning' | 'error' | 'info'; text: string }
+      > = {
         pending: { type: 'info', text: '等待中' },
         running: { type: 'warning', text: '爬取中' },
         success: { type: 'success', text: '已完成' },
@@ -280,11 +298,53 @@ const columns: DataTableColumns<Task> = [
   {
     title: '错误信息',
     key: 'error_message',
-    ellipsis: {
-      tooltip: true
+    width: 220,
+    className: 'error-message-column',
+    render(row) {
+      if (!row.error_message) {
+        return '-'
+      }
+      const previewText = getErrorPreview(row.error_message)
+
+      return h('div', { class: 'error-message-cell' }, [
+        h(
+          NPopover,
+          {
+            trigger: 'hover',
+            placement: 'left',
+            width: 'trigger',
+            scrollable: true,
+            contentClass: 'error-message-popover-shell'
+          },
+          {
+            trigger: () =>
+              h(
+                'span',
+                {
+                  class: 'error-message-preview',
+                  title: '悬停查看完整错误'
+                },
+                previewText
+              ),
+            default: () =>
+              h(
+                'pre',
+                {
+                  class: 'error-message-popover'
+                },
+                row.error_message
+              )
+          }
+        )
+      ])
     }
   }
 ]
+
+function getErrorPreview(text: string) {
+  const normalized = text.replace(/\s+/g, ' ').trim()
+  return normalized.length > 26 ? `${normalized.slice(0, 26)}...` : normalized
+}
 
 async function fetchKeywords() {
   loadingKeywords.value = true
@@ -502,6 +562,51 @@ onUnmounted(() => {
 
 .history-section {
   margin-top: 24px;
+}
+
+:deep(.error-message-column) {
+  white-space: nowrap;
+}
+
+.error-message-cell {
+  display: block;
+  width: 200px;
+  max-width: 200px;
+  min-width: 0;
+  max-height: 24px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.error-message-preview {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--error-color);
+  font-size: 13px;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.error-message-popover {
+  width: min(860px, calc(100vw - 96px));
+  max-height: min(620px, calc(100vh - 128px));
+  margin: 0;
+  padding: 10px 2px;
+  overflow: auto;
+  color: var(--text-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+:deep(.error-message-popover-shell) {
+  max-width: min(900px, calc(100vw - 64px));
 }
 
 @media (max-width: 768px) {

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { Video, VideoListParams } from '@/types/video'
 import { videoApi } from '@/api/video'
 
@@ -8,6 +8,8 @@ const STORAGE_KEYS = {
   sortBy: 'vigor:home:sortBy',
   timeWindow: 'vigor:home:timeWindow'
 }
+
+const PAGE_SIZE = 20
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
   try {
@@ -31,6 +33,7 @@ export const useVideoStore = defineStore('video', () => {
   const selectedVideo = ref<Video | null>(null)
   const total = ref(0)
   const loading = ref(false)
+  const loadingMore = ref(false)
   const currentCategoryId = ref<number | null>(null)
   const currentPlatform = ref<string | null>(loadFromStorage(STORAGE_KEYS.platform, null))
   const sortBy = ref<'heat_score' | 'publish_time'>(
@@ -40,21 +43,25 @@ export const useVideoStore = defineStore('video', () => {
     loadFromStorage(STORAGE_KEYS.timeWindow, null)
   )
 
+  function buildListParams(params?: VideoListParams): VideoListParams {
+    return {
+      category_id:
+        currentCategoryId.value && currentCategoryId.value > 0
+          ? currentCategoryId.value
+          : undefined,
+      platform: currentPlatform.value || undefined,
+      time_window: timeWindow.value || undefined,
+      sort: sortBy.value,
+      limit: PAGE_SIZE,
+      offset: 0,
+      ...params
+    }
+  }
+
   async function fetchVideos(params?: VideoListParams) {
     loading.value = true
     try {
-      const finalParams: VideoListParams = {
-        category_id:
-          currentCategoryId.value && currentCategoryId.value > 0
-            ? currentCategoryId.value
-            : undefined,
-        platform: currentPlatform.value || undefined,
-        time_window: timeWindow.value || undefined,
-        sort: sortBy.value,
-        limit: 20,
-        offset: 0,
-        ...params
-      }
+      const finalParams = buildListParams(params)
       const res = await videoApi.list(finalParams)
       videos.value = res.data
       total.value = res.total
@@ -64,6 +71,25 @@ export const useVideoStore = defineStore('video', () => {
       total.value = 0
     } finally {
       loading.value = false
+    }
+  }
+
+  async function loadMoreVideos() {
+    if (loading.value || loadingMore.value || videos.value.length >= total.value) return
+    loadingMore.value = true
+    try {
+      const res = await videoApi.list(
+        buildListParams({
+          offset: videos.value.length,
+          limit: PAGE_SIZE
+        })
+      )
+      videos.value = [...videos.value, ...res.data]
+      total.value = res.total
+    } catch (error) {
+      console.warn('加载更多视频失败:', error)
+    } finally {
+      loadingMore.value = false
     }
   }
 
@@ -118,11 +144,14 @@ export const useVideoStore = defineStore('video', () => {
     selectedVideo,
     total,
     loading,
+    loadingMore,
+    hasMore: computed(() => videos.value.length < total.value),
     currentCategoryId,
     currentPlatform,
     sortBy,
     timeWindow,
     fetchVideos,
+    loadMoreVideos,
     selectVideo,
     fetchVideoDetail,
     setCategoryId,

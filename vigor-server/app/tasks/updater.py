@@ -164,6 +164,7 @@ def update_selection_task(
         if task_record is not None:
             task_record.status = "success"
             task_record.videos_crawled = updated_count
+            task_record.error_message = None
             task_record.completed_at = datetime.utcnow()
             db.add(task_record)
 

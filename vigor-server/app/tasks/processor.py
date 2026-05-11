@@ -43,8 +43,7 @@ def generate_summary_task(self, video_id: int, task_id: int | None = None):
     crawl_video_comments 把评论补到库里,再生成摘要。
 
     task_id: 由 admin/videos.trigger_generate_summary 预创建的 CrawlTask
-    行 ID,传入时复用该行写 running/success/failed + 时间戳;自动派发
-    (比如 crawler 里完成后 .delay(video.id))不传 task_id,不创建任务行。
+    行 ID,传入时复用该行写 running/success/failed + 时间戳。
     """
     db = SessionLocal()
     task_record: CrawlTask | None = None
@@ -132,6 +131,7 @@ def generate_summary_task(self, video_id: int, task_id: int | None = None):
         if task_record is not None:
             task_record.status = "success"
             task_record.videos_crawled = 1
+            task_record.error_message = None
             task_record.completed_at = datetime.utcnow()
             db.add(task_record)
 

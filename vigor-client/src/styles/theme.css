@@ -2,7 +2,9 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', sans-serif;
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  transition: background-color var(--transition-base), color var(--transition-base);
+  transition:
+    background-color var(--transition-base),
+    color var(--transition-base);
 }
 
 .card {
@@ -10,7 +12,9 @@ body {
   border-radius: var(--radius-lg);
   padding: var(--spacing-lg);
   box-shadow: 0 2px 8px var(--shadow);
-  transition: box-shadow var(--transition-base), transform var(--transition-base);
+  transition:
+    box-shadow var(--transition-base),
+    transform var(--transition-base);
 }
 
 .card:hover {
@@ -60,20 +64,63 @@ body {
   box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
 }
 
-::-webkit-scrollbar {
+.soft-scrollbar,
+.n-data-table-base-table-body,
+.n-scrollbar-container {
+  scrollbar-color: transparent transparent;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+  transition: scrollbar-color var(--transition-fast);
+}
+
+.soft-scrollbar:hover,
+.soft-scrollbar:active,
+.soft-scrollbar:focus-within,
+.n-data-table-base-table-body:hover,
+.n-data-table-base-table-body:active,
+.n-data-table-base-table-body:focus-within,
+.n-scrollbar-container:hover,
+.n-scrollbar-container:active,
+.n-scrollbar-container:focus-within {
+  scrollbar-color: color-mix(in srgb, var(--text-tertiary) 34%, transparent) transparent;
+}
+
+.soft-scrollbar::-webkit-scrollbar,
+.n-data-table-base-table-body::-webkit-scrollbar,
+.n-scrollbar-container::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
+.soft-scrollbar::-webkit-scrollbar-track,
+.n-data-table-base-table-body::-webkit-scrollbar-track,
+.n-scrollbar-container::-webkit-scrollbar-track {
+  background-color: transparent;
 }
 
-::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 4px;
+.soft-scrollbar::-webkit-scrollbar-thumb,
+.n-data-table-base-table-body::-webkit-scrollbar-thumb,
+.n-scrollbar-container::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+  background-color: transparent;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-tertiary);
+.soft-scrollbar:hover::-webkit-scrollbar-thumb,
+.soft-scrollbar:active::-webkit-scrollbar-thumb,
+.soft-scrollbar:focus-within::-webkit-scrollbar-thumb,
+.n-data-table-base-table-body:hover::-webkit-scrollbar-thumb,
+.n-data-table-base-table-body:active::-webkit-scrollbar-thumb,
+.n-data-table-base-table-body:focus-within::-webkit-scrollbar-thumb,
+.n-scrollbar-container:hover::-webkit-scrollbar-thumb,
+.n-scrollbar-container:active::-webkit-scrollbar-thumb,
+.n-scrollbar-container:focus-within::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--text-tertiary) 34%, transparent);
+}
+
+.soft-scrollbar::-webkit-scrollbar-thumb:hover,
+.n-data-table-base-table-body::-webkit-scrollbar-thumb:hover,
+.n-scrollbar-container::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--text-tertiary) 52%, transparent);
 }
