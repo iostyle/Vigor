@@ -165,6 +165,7 @@ import { keywordApi } from '@/api/keyword'
 import { categoryApi, type Category } from '@/api/category'
 import { taskApi, type Task } from '@/api/task'
 import type { Keyword } from '@/types/keyword'
+import { buildKeywordOption } from '@/utils/keywordOptions'
 
 const message = useMessage()
 
@@ -301,10 +302,11 @@ const columns: DataTableColumns<Task> = [
     width: 220,
     className: 'error-message-column',
     render(row) {
-      if (!row.error_message) {
+      const errorMessage = getTaskErrorMessage(row)
+      if (!errorMessage) {
         return '-'
       }
-      const previewText = getErrorPreview(row.error_message)
+      const previewText = getErrorPreview(errorMessage)
 
       return h('div', { class: 'error-message-cell' }, [
         h(
@@ -332,7 +334,7 @@ const columns: DataTableColumns<Task> = [
                 {
                   class: 'error-message-popover'
                 },
-                row.error_message
+                errorMessage
               )
           }
         )
@@ -340,6 +342,16 @@ const columns: DataTableColumns<Task> = [
     }
   }
 ]
+
+function getTaskErrorMessage(row: Task) {
+  if (row.error_message?.trim()) {
+    return row.error_message
+  }
+  if (row.status === 'failed') {
+    return '任务失败,但后端未返回错误详情'
+  }
+  return null
+}
 
 function getErrorPreview(text: string) {
   const normalized = text.replace(/\s+/g, ' ').trim()
@@ -350,10 +362,7 @@ async function fetchKeywords() {
   loadingKeywords.value = true
   try {
     const res = await keywordApi.list({ limit: 100 })
-    keywordOptions.value = res.map((k: Keyword) => ({
-      label: `${k.keyword} (ID: ${k.id})`,
-      value: k.id
-    }))
+    keywordOptions.value = res.map((k: Keyword) => buildKeywordOption(k, { disableInactive: true }))
   } catch {
     message.error('加载关键词失败')
   } finally {

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, verify_api_key
-from app.models import Category, Comment, CommentSummary, Keyword, Video
+from app.models import Comment, CommentSummary, Keyword, Video
 from app.schemas import (
     CommentResponse,
     CommentSummaryResponse,
@@ -42,6 +42,7 @@ def list_videos(
         db.query(Video)
         .join(Keyword, Video.keyword_id == Keyword.id)
         .filter(Keyword.status == "active")
+        .filter(Video.status == "active")
     )
 
     if keyword_id is not None:

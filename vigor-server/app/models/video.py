@@ -31,6 +31,7 @@ class Video(Base):
     summary = Column(Text)
     summary_generated_at = Column(TIMESTAMP)
     tags = Column(Text)
+    status = Column(String(20), nullable=False, default="active", server_default="active", index=True)
 
     keyword = relationship("Keyword", backref="videos")
     comments = relationship("Comment", back_populates="video", cascade="all, delete-orphan")

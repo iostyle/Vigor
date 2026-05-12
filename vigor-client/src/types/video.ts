@@ -3,6 +3,7 @@ export interface Video {
   douyin_id?: string
   external_id?: string
   platform?: string
+  status?: 'active' | 'hidden' | 'archived'
   title: string
   author_name: string | null
   author_id?: string | null
@@ -42,6 +43,7 @@ export interface VideoListParams {
   keyword_id?: number
   category_id?: number
   platform?: string
+  video_status?: 'active' | 'hidden' | 'archived' | 'all'
   time_window?: '1d' | '3d' | '7d' | '15d' | '30d'
   sort?: 'heat_score' | 'publish_time'
   limit?: number

@@ -88,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { NConfigProvider, darkTheme } from 'naive-ui'
 import { useUserStore } from '@/stores/user'
@@ -104,12 +104,24 @@ const adminTheme = ref<AdminTheme>(
 )
 
 const naiveTheme = computed(() => (adminTheme.value === 'dark' ? darkTheme : null))
+let previousClientTheme: string | null = null
 
 watch(adminTheme, (val) => {
   try {
     localStorage.setItem(ADMIN_THEME_KEY, val)
   } catch {
     // localStorage 不可用时静默失败
+  }
+})
+
+onMounted(() => {
+  previousClientTheme = document.documentElement.getAttribute('data-theme')
+  document.documentElement.removeAttribute('data-theme')
+})
+
+onBeforeUnmount(() => {
+  if (previousClientTheme) {
+    document.documentElement.setAttribute('data-theme', previousClientTheme)
   }
 })
 

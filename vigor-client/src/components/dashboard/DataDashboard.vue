@@ -200,27 +200,9 @@
               </button>
             </div>
           </div>
-          <div v-if="showComments" class="comments-list soft-scrollbar">
-            <div v-if="loadingComments" class="comments-state">加载中...</div>
-            <div v-else-if="comments.length === 0" class="comments-state">暂无评论</div>
-            <div v-else class="comment-items">
-              <div v-for="comment in comments" :key="comment.id" class="comment-item">
-                <div class="comment-header">
-                  <div class="comment-meta">
-                    <span class="comment-author">{{ comment.author_name || '匿名' }}</span>
-                    <span v-if="comment.publish_time" class="comment-time">
-                      {{ formatDate(comment.publish_time) }}
-                    </span>
-                  </div>
-                  <span class="comment-likes">👍 {{ formatNumber(comment.like_count) }}</span>
-                </div>
-                <p class="comment-content">{{ comment.content }}</p>
-              </div>
-            </div>
-          </div>
         </div>
         <div v-else-if="video.comment_count > 0" class="generate-summary">
-          <p class="hint">该视频有 {{ video.comment_count }} 条评论,可点击生成 AI 评论摘要</p>
+          <p class="hint">该视频有 {{ video.comment_count }} 条评论,可查看原始评论或生成 AI 评论摘要</p>
           <button
             type="button"
             class="generate-btn"
@@ -232,6 +214,41 @@
         </div>
         <div v-else class="no-data">
           <p>暂无评论摘要</p>
+        </div>
+        <div
+          v-if="video.comment_count > 0 && (generating || !video.comment_summary)"
+          class="summary-comments-bar"
+        >
+          <button type="button" class="toggle-btn" @click="toggleComments">
+            {{ showComments ? '收起评论' : '查看评论' }}
+            <svg
+              viewBox="0 0 24 24"
+              width="12"
+              height="12"
+              fill="currentColor"
+              :class="{ 'icon-flipped': showComments }"
+            >
+              <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
+            </svg>
+          </button>
+        </div>
+        <div v-if="showComments && video.comment_count > 0" class="comments-list soft-scrollbar">
+          <div v-if="loadingComments" class="comments-state">加载中...</div>
+          <div v-else-if="comments.length === 0" class="comments-state">暂无评论</div>
+          <div v-else class="comment-items">
+            <div v-for="comment in comments" :key="comment.id" class="comment-item">
+              <div class="comment-header">
+                <div class="comment-meta">
+                  <span class="comment-author">{{ comment.author_name || '匿名' }}</span>
+                  <span v-if="comment.publish_time" class="comment-time">
+                    {{ formatDate(comment.publish_time) }}
+                  </span>
+                </div>
+                <span class="comment-likes">👍 {{ formatNumber(comment.like_count) }}</span>
+              </div>
+              <p class="comment-content">{{ comment.content }}</p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -897,6 +914,13 @@ const generatedAtText = computed(() => {
 .summary-actions {
   display: flex;
   gap: 8px;
+}
+
+.summary-comments-bar {
+  width: 100%;
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--border-color);
 }
 
 .toggle-btn {

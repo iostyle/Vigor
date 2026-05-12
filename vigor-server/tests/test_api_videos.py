@@ -105,11 +105,14 @@ def seed_data(test_db):
 
 class TestListVideos:
     def test_returns_all_videos_default(self, client, seed_data):
-        resp = client.get("/api/admin/videos")
+        resp = client.get(
+            "/api/admin/videos",
+            params={"keyword_id": seed_data["keyword_id"]},
+        )
         assert resp.status_code == 200
         body = resp.json()
-        assert body["total"] == 4
-        assert len(body["data"]) == 4
+        assert body["total"] == 3
+        assert len(body["data"]) == 3
 
     def test_filter_by_keyword_id(self, client, seed_data):
         resp = client.get(
@@ -121,16 +124,38 @@ class TestListVideos:
         assert body["total"] == 3
         assert all(v["external_id"] in {"dy_1", "dy_2", "dy_3"} for v in body["data"])
 
+    def test_filter_by_status(self, client, seed_data, test_db):
+        video = seed_data["videos"][0]
+        video.status = "hidden"
+        test_db.commit()
+
+        resp = client.get(
+            "/api/admin/videos",
+            params={"keyword_id": seed_data["keyword_id"], "video_status": "hidden"},
+        )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 1
+        assert body["data"][0]["id"] == video.id
+        assert body["data"][0]["status"] == "hidden"
+
     def test_filter_24h_window(self, client, seed_data):
-        resp = client.get("/api/admin/videos", params={"time_window": "24h"})
+        resp = client.get(
+            "/api/admin/videos",
+            params={"keyword_id": seed_data["keyword_id"], "time_window": "24h"},
+        )
         assert resp.status_code == 200
         ids = {v["external_id"] for v in resp.json()["data"]}
-        assert ids == {"dy_1", "dy_4"}
+        assert ids == {"dy_1"}
 
     def test_filter_7d_window(self, client, seed_data):
-        resp = client.get("/api/admin/videos", params={"time_window": "7d"})
+        resp = client.get(
+            "/api/admin/videos",
+            params={"keyword_id": seed_data["keyword_id"], "time_window": "7d"},
+        )
         ids = {v["external_id"] for v in resp.json()["data"]}
-        assert ids == {"dy_1", "dy_2", "dy_4"}
+        assert ids == {"dy_1", "dy_2"}
 
     def test_sort_by_heat_score_desc(self, client, seed_data):
         resp = client.get(
@@ -141,14 +166,20 @@ class TestListVideos:
         assert scores == sorted(scores, reverse=True)
 
     def test_pagination(self, client, seed_data):
-        resp = client.get("/api/admin/videos", params={"limit": 2, "offset": 0})
+        resp = client.get(
+            "/api/admin/videos",
+            params={"keyword_id": seed_data["keyword_id"], "limit": 2, "offset": 0},
+        )
         assert resp.status_code == 200
         body = resp.json()
-        assert body["total"] == 4
+        assert body["total"] == 3
         assert len(body["data"]) == 2
 
-        resp2 = client.get("/api/admin/videos", params={"limit": 2, "offset": 2})
-        assert len(resp2.json()["data"]) == 2
+        resp2 = client.get(
+            "/api/admin/videos",
+            params={"keyword_id": seed_data["keyword_id"], "limit": 2, "offset": 2},
+        )
+        assert len(resp2.json()["data"]) == 1
 
     def test_invalid_time_window(self, client, seed_data):
         resp = client.get("/api/admin/videos", params={"time_window": "bogus"})
@@ -206,4 +237,35 @@ class TestTriggerUpdate:
 
     def test_404_when_video_missing(self, client, seed_data):
         resp = client.post("/api/admin/videos/99999/update")
+        assert resp.status_code == 404
+
+
+class TestUpdateVideoStatus:
+    def test_updates_video_status(self, client, seed_data, test_db):
+        video = seed_data["videos"][0]
+
+        resp = client.patch(
+            f"/api/admin/videos/{video.id}/status",
+            json={"status": "hidden"},
+        )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["id"] == video.id
+        assert body["status"] == "hidden"
+        test_db.refresh(video)
+        assert video.status == "hidden"
+
+    def test_rejects_invalid_status(self, client, seed_data):
+        video = seed_data["videos"][0]
+
+        resp = client.patch(
+            f"/api/admin/videos/{video.id}/status",
+            json={"status": "deleted"},
+        )
+
+        assert resp.status_code == 422
+
+    def test_404_when_video_missing(self, client, seed_data):
+        resp = client.patch("/api/admin/videos/99999/status", json={"status": "hidden"})
         assert resp.status_code == 404

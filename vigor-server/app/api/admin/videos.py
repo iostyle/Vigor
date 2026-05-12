@@ -3,12 +3,14 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import desc, asc
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, verify_api_key
 from app.models.comment import CommentSummary
 from app.models.keyword import Keyword
 from app.models.video import Video
+from pydantic import BaseModel
+
 from app.schemas.video import VideoListResponse, VideoResponse
 
 router = APIRouter(
@@ -20,6 +22,12 @@ router = APIRouter(
 TimeWindow = Literal["24h", "7d", "30d", "all"]
 SortField = Literal["heat_score", "publish_time", "like_count", "comment_count", "crawled_at"]
 SortOrder = Literal["asc", "desc"]
+VideoStatus = Literal["active", "hidden", "archived"]
+VideoStatusFilter = Literal["active", "hidden", "archived", "all"]
+
+
+class VideoStatusUpdate(BaseModel):
+    status: VideoStatus
 
 _TIME_WINDOW_DELTAS: dict[str, Optional[timedelta]] = {
     "24h": timedelta(hours=24),
@@ -55,13 +63,19 @@ def _build_video_response(video: Video, summary: Optional[CommentSummary]) -> Vi
         {
             "id": video.id,
             "external_id": video.external_id,
+            "platform": video.platform,
+            "status": video.status or "active",
             "title": video.title,
             "author_name": video.author_name,
+            "cover_url": video.cover_url,
+            "video_url": video.video_url,
             "like_count": video.like_count or 0,
             "comment_count": video.comment_count or 0,
             "share_count": video.share_count or 0,
             "heat_score": video.heat_score,
             "publish_time": video.publish_time,
+            "crawled_at": video.crawled_at,
+            "last_updated_at": video.last_updated_at,
             "summary": video.summary,
             "tags": video.tags,
             "comment_summary": comment_summary,
@@ -72,6 +86,8 @@ def _build_video_response(video: Video, summary: Optional[CommentSummary]) -> Vi
 @router.get("", response_model=VideoListResponse)
 def list_videos(
     keyword_id: Optional[int] = Query(None, ge=1),
+    platform: Optional[str] = Query(None, max_length=16),
+    video_status: VideoStatusFilter = Query("all"),
     time_window: TimeWindow = Query("all"),
     limit: int = Query(20, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -88,6 +104,12 @@ def list_videos(
 
     if keyword_id is not None:
         query = query.filter(Video.keyword_id == keyword_id)
+
+    if platform is not None:
+        query = query.filter(Video.platform == platform)
+
+    if video_status != "all":
+        query = query.filter(Video.status == video_status)
 
     query = _apply_time_window(query, time_window)
 
@@ -121,6 +143,29 @@ def get_video(
     video = db.query(Video).filter(Video.id == video_id).first()
     if video is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+
+    summary = (
+        db.query(CommentSummary)
+        .filter(CommentSummary.video_id == video_id)
+        .first()
+    )
+    return _build_video_response(video, summary)
+
+
+@router.patch("/{video_id}/status", response_model=VideoResponse)
+def update_video_status(
+    video_id: int,
+    payload: VideoStatusUpdate,
+    db: Session = Depends(get_db),
+) -> VideoResponse:
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if video is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+
+    video.status = payload.status
+    db.add(video)
+    db.commit()
+    db.refresh(video)
 
     summary = (
         db.query(CommentSummary)

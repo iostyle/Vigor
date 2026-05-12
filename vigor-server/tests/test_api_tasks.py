@@ -7,14 +7,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api.admin.tasks import router
+import app.api.admin.tasks as tasks_api
 from app.api.deps import get_db, verify_api_key
 from app.database import Base
 from app.models import Category, Keyword, CrawlTask, Video  # noqa: F401  ensure models registered
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -24,7 +24,7 @@ def client():
     TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
     app = FastAPI()
-    app.include_router(router)
+    app.include_router(tasks_api.router)
 
     def override_get_db():
         db = TestingSessionLocal()
@@ -35,6 +35,11 @@ def client():
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[verify_api_key] = lambda: "test-key"
+    monkeypatch.setattr(
+        tasks_api,
+        "_enqueue_celery_task",
+        lambda task_name, *args: f"task-{task_name}",
+    )
 
     with TestClient(app) as c:
         c.session = TestingSessionLocal()
@@ -52,6 +57,15 @@ def _create_keyword(session, keyword="python") -> Keyword:
         session.commit()
         session.refresh(cat)
     kw = Keyword(keyword=keyword, category_id=cat.id, status="active")
+    session.add(kw)
+    session.commit()
+    session.refresh(kw)
+    return kw
+
+
+def _create_paused_keyword(session, keyword="paused") -> Keyword:
+    kw = _create_keyword(session, keyword)
+    kw.status = "paused"
     session.add(kw)
     session.commit()
     session.refresh(kw)
@@ -94,6 +108,15 @@ class TestTriggerCrawl:
             "/api/admin/tasks/crawl", json={"keyword_id": 9999}
         )
         assert response.status_code == 404
+
+    def test_rejects_inactive_keyword(self, client):
+        kw = _create_paused_keyword(client.session)
+
+        response = client.post(
+            "/api/admin/tasks/crawl", json={"keyword_id": kw.id}
+        )
+
+        assert response.status_code == 400
 
 
 class TestTriggerUpdate:
@@ -148,6 +171,15 @@ class TestTriggerUpdate:
             "/api/admin/tasks/update", json={"keyword_id": 9999}
         )
         assert response.status_code == 404
+
+    def test_rejects_inactive_keyword(self, client):
+        kw = _create_paused_keyword(client.session)
+
+        response = client.post(
+            "/api/admin/tasks/update", json={"keyword_id": kw.id}
+        )
+
+        assert response.status_code == 400
 
 
 class TestListTasks:

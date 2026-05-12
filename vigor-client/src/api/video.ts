@@ -7,6 +7,8 @@ export interface GenerateSummaryResponse {
   status: string
 }
 
+export type VideoStatus = 'active' | 'hidden' | 'archived'
+
 export const videoApi = {
   list(params: VideoListParams): Promise<VideoListResponse> {
     return request.get('/api/internal/videos', { params })
@@ -26,5 +28,13 @@ export const videoApi = {
 
   generateSummary(videoId: number): Promise<GenerateSummaryResponse> {
     return request.post(`/api/admin/videos/${videoId}/generate-summary`)
+  },
+
+  adminList(params: VideoListParams): Promise<VideoListResponse> {
+    return request.get('/api/admin/videos', { params })
+  },
+
+  updateStatus(videoId: number, status: VideoStatus): Promise<Video> {
+    return request.patch(`/api/admin/videos/${videoId}/status`, { status })
   }
 }

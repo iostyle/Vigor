@@ -23,6 +23,7 @@ class VideoResponse(BaseModel):
     external_id: str
     platform: str = "douyin"
     title: str
+    status: str = "active"
     author_name: Optional[str] = None
     cover_url: Optional[str] = None
     video_url: Optional[str] = None

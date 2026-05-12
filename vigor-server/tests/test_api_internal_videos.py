@@ -111,6 +111,23 @@ def test_list_videos_returns_all_when_no_filters(client):
     assert heat_scores == sorted(heat_scores, reverse=True)
 
 
+def test_list_videos_excludes_inactive_videos(client):
+    test_client, factory = client
+    v1_id, *_ = _seed_videos(factory)
+    session = factory()
+    video = session.query(Video).filter(Video.id == v1_id).first()
+    video.status = "hidden"
+    session.commit()
+    session.close()
+
+    response = test_client.get("/api/videos", headers=HEADERS)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 2
+    assert all(v["id"] != v1_id for v in body["data"])
+
+
 def test_list_videos_filters_by_keyword(client):
     test_client, factory = client
     _, _, _, kw_id, _ = _seed_videos(factory)

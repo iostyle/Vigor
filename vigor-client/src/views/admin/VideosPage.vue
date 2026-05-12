@@ -24,6 +24,14 @@
           style="width: 200px"
           @update:value="handleFilterChange"
         />
+        <n-select
+          v-model:value="filters.video_status"
+          :options="statusFilterOptions"
+          placeholder="选择状态"
+          clearable
+          style="width: 150px"
+          @update:value="handleFilterChange"
+        />
         <n-date-picker
           v-model:value="filters.dateRange"
           type="daterange"
@@ -49,10 +57,22 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, h } from 'vue'
-import { NCard, NSpace, NSelect, NDatePicker, NDataTable, NTag, NButton, useMessage } from 'naive-ui'
+import {
+  NButton,
+  NCard,
+  NDataTable,
+  NDatePicker,
+  NDropdown,
+  NSpace,
+  NSelect,
+  NTag,
+  useMessage
+} from 'naive-ui'
 import type { DataTableColumns, SelectOption } from 'naive-ui'
-import { videoApi, type Video } from '@/api/video'
+import { videoApi, type VideoStatus } from '@/api/video'
+import type { Video } from '@/types/video'
 import { keywordApi } from '@/api/keyword'
+import { buildKeywordOption } from '@/utils/keywordOptions'
 
 const message = useMessage()
 
@@ -62,6 +82,7 @@ const loading = ref(false)
 const filters = ref({
   platform: null as string | null,
   keyword_id: null as number | null,
+  video_status: null as 'active' | 'hidden' | 'archived' | null,
   dateRange: null as [number, number] | null
 })
 
@@ -71,6 +92,28 @@ const platformOptions: SelectOption[] = [
 ]
 
 const keywordOptions = ref<SelectOption[]>([])
+const updatingStatusIds = ref<Set<number>>(new Set())
+
+const statusFilterOptions: SelectOption[] = [
+  { label: '启用', value: 'active' },
+  { label: '隐藏', value: 'hidden' },
+  { label: '归档', value: 'archived' }
+]
+
+const statusOptions = [
+  { label: '设为启用', key: 'active' },
+  { label: '设为隐藏', key: 'hidden' },
+  { label: '设为归档', key: 'archived' }
+]
+
+const statusMap: Record<
+  string,
+  { type: 'success' | 'warning' | 'default'; text: string }
+> = {
+  active: { type: 'success', text: '启用' },
+  hidden: { type: 'warning', text: '隐藏' },
+  archived: { type: 'default', text: '归档' }
+}
 
 const pagination = reactive({
   page: 1,
@@ -115,6 +158,15 @@ const columns: DataTableColumns<Video> = [
       tooltip: true
     },
     width: 300
+  },
+  {
+    title: '状态',
+    key: 'status',
+    width: 90,
+    render(row) {
+      const status = statusMap[row.status || 'active'] || { type: 'default', text: row.status || '-' }
+      return h(NTag, { type: status.type, size: 'small' }, { default: () => status.text })
+    }
   },
   {
     title: '作者',
@@ -176,17 +228,46 @@ const columns: DataTableColumns<Video> = [
   {
     title: '操作',
     key: 'actions',
-    width: 100,
+    width: 180,
     render(row) {
       return h(
-        NButton,
+        NSpace,
+        { size: 12 },
         {
-          size: 'small',
-          text: true,
-          type: 'primary',
-          onClick: () => row.video_url && window.open(row.video_url, '_blank')
-        },
-        { default: () => '查看原视频' }
+          default: () => [
+            h(
+              NButton,
+              {
+                size: 'small',
+                text: true,
+                type: 'primary',
+                onClick: () => row.video_url && window.open(row.video_url, '_blank')
+              },
+              { default: () => '查看原视频' }
+            ),
+            h(
+              NDropdown,
+              {
+                trigger: 'click',
+                options: statusOptions.filter((item) => item.key !== (row.status || 'active')),
+                onSelect: (key: string) => handleStatusChange(row, key as VideoStatus)
+              },
+              {
+                default: () =>
+                  h(
+                    NButton,
+                    {
+                      size: 'small',
+                      text: true,
+                      type: 'primary',
+                      loading: updatingStatusIds.value.has(row.id)
+                    },
+                    { default: () => '状态变更' }
+                  )
+              }
+            )
+          ]
+        }
       )
     }
   }
@@ -202,10 +283,7 @@ function formatNumber(num: number): string {
 async function fetchKeywords() {
   try {
     const res = await keywordApi.list({ limit: 100 })
-    keywordOptions.value = res.map((k) => ({
-      label: k.keyword,
-      value: k.id
-    }))
+    keywordOptions.value = res.map((k) => buildKeywordOption(k))
   } catch (error) {
     console.error('Failed to fetch keywords:', error)
   }
@@ -227,13 +305,37 @@ async function fetchVideos() {
       params.keyword_id = filters.value.keyword_id
     }
 
-    const res = await videoApi.list(params)
+    if (filters.value.video_status) {
+      params.video_status = filters.value.video_status
+    }
+
+    const res = await videoApi.adminList(params)
     videos.value = res.data
     pagination.itemCount = res.total
   } catch (error) {
     message.error('加载视频列表失败')
   } finally {
     loading.value = false
+  }
+}
+
+async function handleStatusChange(row: Video, status: VideoStatus) {
+  const next = new Set(updatingStatusIds.value)
+  next.add(row.id)
+  updatingStatusIds.value = next
+  try {
+    const updated = await videoApi.updateStatus(row.id, status)
+    const index = videos.value.findIndex((item) => item.id === row.id)
+    if (index !== -1) {
+      videos.value[index] = { ...videos.value[index], status: updated.status }
+    }
+    message.success('视频状态已更新')
+  } catch {
+    message.error('视频状态更新失败')
+  } finally {
+    const done = new Set(updatingStatusIds.value)
+    done.delete(row.id)
+    updatingStatusIds.value = done
   }
 }
 

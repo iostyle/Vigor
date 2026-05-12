@@ -81,6 +81,21 @@ def _enqueue_celery_task(task_name: str, *args) -> str:
         return result.id
     return f"celery-{task_name}-placeholder"
 
+
+def _get_active_keyword_or_404(db: Session, keyword_id: int) -> Keyword:
+    keyword = db.query(Keyword).filter(Keyword.id == keyword_id).first()
+    if not keyword:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Keyword not found",
+        )
+    if keyword.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Keyword is not active",
+        )
+    return keyword
+
 @router.post(
     "/crawl",
     response_model=TaskTriggerResponse,
@@ -90,12 +105,7 @@ def trigger_crawl(
     payload: CrawlTriggerRequest,
     db: Session = Depends(get_db),
 ) -> TaskTriggerResponse:
-    keyword = db.query(Keyword).filter(Keyword.id == payload.keyword_id).first()
-    if not keyword:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Keyword not found",
-        )
+    _get_active_keyword_or_404(db, payload.keyword_id)
 
     task = CrawlTask(
         keyword_id=payload.keyword_id,
@@ -264,11 +274,7 @@ def trigger_update(
         )
 
     # ---- 关键词模式:批量,每条 video 一行 task,limit 截断 ----
-    keyword = db.query(Keyword).filter(Keyword.id == payload.keyword_id).first()
-    if not keyword:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Keyword not found"
-        )
+    _get_active_keyword_or_404(db, payload.keyword_id)
     videos = (
         db.query(Video)
         .filter(Video.keyword_id == payload.keyword_id)
