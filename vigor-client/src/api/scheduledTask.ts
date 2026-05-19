@@ -3,6 +3,7 @@ import request from './index'
 export type ScheduledTaskKind = 'crawl' | 'update'
 export type ScheduledTargetMode = 'category' | 'keyword' | 'video'
 export type ScheduledScheduleType = 'interval' | 'daily'
+export type SchedulerHealthStatus = 'healthy' | 'delayed' | 'stalled'
 
 export interface ScheduledTask {
   id: number
@@ -42,7 +43,61 @@ export interface ScheduledTaskListResponse {
   data: ScheduledTask[]
 }
 
+export interface ScheduledTaskMonitor {
+  server_time: string
+  health: {
+    status: SchedulerHealthStatus
+    message: string
+    seconds_since_last_run: number | null
+  }
+  scheduler: {
+    last_run_at: string | null
+    last_finished_at: string | null
+    last_status: string | null
+    last_due_count: number
+    last_dispatched_count: number
+    last_failed_count: number
+  }
+  tasks: {
+    enabled_count: number
+    disabled_count: number
+    due_count: number
+    last_24h_total: number
+    last_24h_success: number
+    last_24h_failed: number
+    last_24h_running: number
+    source_counts: Record<string, number>
+  }
+  recent_tasks: Array<{
+    id: number
+    task_type: string
+    status: string
+    source: string
+    source_id: number | null
+    keyword_id: number | null
+    videos_crawled: number
+    started_at: string | null
+    completed_at: string | null
+    error_message: string | null
+  }>
+  recent_runs: Array<{
+    id: number
+    status: string
+    started_at: string
+    finished_at: string | null
+    due_count: number
+    dispatched_count: number
+    failed_count: number
+    triggered_task_ids: number[]
+    error_message: string | null
+  }>
+}
+
 export const scheduledTaskApi = {
+  monitor(): Promise<ScheduledTaskMonitor> {
+    return request.get('/api/admin/scheduled-tasks/monitor')
+  },
+
   list(params?: { page?: number; page_size?: number }): Promise<ScheduledTaskListResponse> {
     return request.get('/api/admin/scheduled-tasks', { params })
   },

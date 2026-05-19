@@ -4,6 +4,7 @@ from app.models.video import Video
 from app.models.comment import Comment, CommentSummary
 from app.models.task import CrawlTask
 from app.models.scheduled_task import ScheduledTask
+from app.models.scheduled_task_run import ScheduledTaskRun
 
 __all__ = [
     "Category",
@@ -13,4 +14,5 @@ __all__ = [
     "CommentSummary",
     "CrawlTask",
     "ScheduledTask",
+    "ScheduledTaskRun",
 ]

@@ -88,3 +88,63 @@ class ScheduledTaskListResponse(BaseModel):
 
 class ScheduledTaskToggle(BaseModel):
     enabled: bool
+
+
+class SchedulerHealthResponse(BaseModel):
+    status: str
+    message: str
+    seconds_since_last_run: Optional[int] = None
+
+
+class SchedulerSnapshotResponse(BaseModel):
+    last_run_at: Optional[datetime] = None
+    last_finished_at: Optional[datetime] = None
+    last_status: Optional[str] = None
+    last_due_count: int = 0
+    last_dispatched_count: int = 0
+    last_failed_count: int = 0
+
+
+class ScheduledTaskMonitorStatsResponse(BaseModel):
+    enabled_count: int
+    disabled_count: int
+    due_count: int
+    last_24h_total: int
+    last_24h_success: int
+    last_24h_failed: int
+    last_24h_running: int
+    source_counts: dict[str, int]
+
+
+class ScheduledMonitorTaskResponse(BaseModel):
+    id: int
+    task_type: str
+    status: str
+    source: str
+    source_id: Optional[int] = None
+    keyword_id: Optional[int] = None
+    videos_crawled: int = 0
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+
+
+class ScheduledTaskRunResponse(BaseModel):
+    id: int
+    status: str
+    started_at: datetime
+    finished_at: Optional[datetime] = None
+    due_count: int
+    dispatched_count: int
+    failed_count: int
+    triggered_task_ids: list[int]
+    error_message: Optional[str] = None
+
+
+class ScheduledTaskMonitorResponse(BaseModel):
+    server_time: datetime
+    health: SchedulerHealthResponse
+    scheduler: SchedulerSnapshotResponse
+    tasks: ScheduledTaskMonitorStatsResponse
+    recent_tasks: list[ScheduledMonitorTaskResponse]
+    recent_runs: list[ScheduledTaskRunResponse]

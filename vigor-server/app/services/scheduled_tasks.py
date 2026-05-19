@@ -3,11 +3,14 @@ import logging
 from datetime import datetime, timedelta
 
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.category import Category
 from app.models.keyword import Keyword
 from app.models.scheduled_task import ScheduledTask
+from app.models.scheduled_task_run import ScheduledTaskRun
+from app.models.task import CrawlTask
 from app.models.video import Video
 from app.services.task_dispatcher import (
     dispatch_crawl_category,
@@ -64,19 +67,29 @@ def validate_scheduled_task(task: ScheduledTask) -> None:
         task.limit = 20 if task.target_mode == "keyword" else 100
 
 
-def dispatch_scheduled_task(db: Session, task: ScheduledTask) -> list[int]:
+def dispatch_scheduled_task(
+    db: Session,
+    task: ScheduledTask,
+    source: str = "scheduled",
+    source_id: int | None = None,
+) -> list[int]:
+    source_id = source_id if source_id is not None else task.id
     if task.task_kind == "crawl":
         if task.target_mode == "keyword":
             task_ids, _ = dispatch_crawl_keyword(
                 db,
                 task.target_id,
                 task.platform or "bilibili",
+                source=source,
+                source_id=source_id,
             )
         elif task.target_mode == "category":
             task_ids, _, _ = dispatch_crawl_category(
                 db,
                 task.target_id,
                 task.platform or "bilibili",
+                source=source,
+                source_id=source_id,
             )
         else:
             raise HTTPException(
@@ -85,11 +98,28 @@ def dispatch_scheduled_task(db: Session, task: ScheduledTask) -> list[int]:
             )
     elif task.task_kind == "update":
         if task.target_mode == "video":
-            task_ids, _ = dispatch_update_video(db, task.target_id)
+            task_ids, _ = dispatch_update_video(
+                db,
+                task.target_id,
+                source=source,
+                source_id=source_id,
+            )
         elif task.target_mode == "keyword":
-            task_ids, _, _ = dispatch_update_keyword(db, task.target_id, task.limit or 20)
+            task_ids, _, _ = dispatch_update_keyword(
+                db,
+                task.target_id,
+                task.limit or 20,
+                source=source,
+                source_id=source_id,
+            )
         elif task.target_mode == "category":
-            task_ids, _, _ = dispatch_update_category(db, task.target_id, task.limit or 100)
+            task_ids, _, _ = dispatch_update_category(
+                db,
+                task.target_id,
+                task.limit or 100,
+                source=source,
+                source_id=source_id,
+            )
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -105,6 +135,18 @@ def dispatch_scheduled_task(db: Session, task: ScheduledTask) -> list[int]:
 
 def run_due_scheduled_tasks(db: Session, now: datetime | None = None) -> int:
     current = now or datetime.now()
+    run = ScheduledTaskRun(
+        status="running",
+        started_at=current,
+        due_count=0,
+        dispatched_count=0,
+        failed_count=0,
+        triggered_task_ids=json.dumps([]),
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+
     due_tasks = (
         db.query(ScheduledTask)
         .filter(ScheduledTask.enabled.is_(True))
@@ -113,15 +155,26 @@ def run_due_scheduled_tasks(db: Session, now: datetime | None = None) -> int:
     )
 
     dispatched = 0
+    failed = 0
+    triggered_task_ids: list[int] = []
+    errors: list[str] = []
     for task in due_tasks:
         try:
-            task_ids = dispatch_scheduled_task(db, task)
+            task_ids = dispatch_scheduled_task(
+                db,
+                task,
+                source="scheduled",
+                source_id=task.id,
+            )
             dispatched += 1
+            triggered_task_ids.extend(task_ids)
             task.last_task_ids = json.dumps(task_ids)
             task.last_run_at = current
         except Exception as exc:
+            failed += 1
             task.last_task_ids = json.dumps([])
             task.last_run_at = current
+            errors.append(f"定时任务 {task.id}: {exc}")
             # Why: 调度器不能因为一个配置失败而阻塞后续配置继续运行。
             logger.warning("scheduled task %s failed: %s", task.id, exc)
         finally:
@@ -129,7 +182,145 @@ def run_due_scheduled_tasks(db: Session, now: datetime | None = None) -> int:
             db.add(task)
             db.commit()
 
+    run.due_count = len(due_tasks)
+    run.dispatched_count = dispatched
+    run.failed_count = failed
+    run.triggered_task_ids = json.dumps(triggered_task_ids)
+    run.status = "failed" if failed else "success"
+    run.error_message = "\n".join(errors) if errors else None
+    run.finished_at = now or datetime.now()
+    db.add(run)
+    db.commit()
+
     return dispatched
+
+
+def parse_task_ids(value: str | None) -> list[int]:
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [int(item) for item in parsed if item is not None]
+
+
+def get_scheduler_monitor(db: Session, now: datetime | None = None) -> dict:
+    current = now or datetime.now()
+    last_run = db.query(ScheduledTaskRun).order_by(ScheduledTaskRun.started_at.desc()).first()
+    enabled_count = db.query(ScheduledTask).filter(ScheduledTask.enabled.is_(True)).count()
+    disabled_count = db.query(ScheduledTask).filter(ScheduledTask.enabled.is_(False)).count()
+    due_count = (
+        db.query(ScheduledTask)
+        .filter(ScheduledTask.enabled.is_(True))
+        .filter(ScheduledTask.next_run_at <= current)
+        .count()
+    )
+
+    health_status = "stalled"
+    health_message = "调度器还没有扫描记录"
+    seconds_since_last_run = None
+    if last_run is not None:
+        seconds_since_last_run = int((current - last_run.started_at).total_seconds())
+        if seconds_since_last_run <= 120 and due_count == 0:
+            health_status = "healthy"
+            health_message = "调度器运行正常"
+        elif seconds_since_last_run <= 300:
+            health_status = "delayed"
+            health_message = "存在待触发任务或调度器略有延迟"
+        else:
+            health_status = "stalled"
+            health_message = "调度器超过 5 分钟没有扫描记录"
+
+    since = current - timedelta(hours=24)
+    scheduled_task_query = (
+        db.query(CrawlTask)
+        .filter(CrawlTask.source == "scheduled")
+        .filter(CrawlTask.started_at >= since)
+    )
+    last_24h_total = scheduled_task_query.count()
+    last_24h_success = scheduled_task_query.filter(CrawlTask.status == "success").count()
+    last_24h_failed = scheduled_task_query.filter(CrawlTask.status == "failed").count()
+    last_24h_running = scheduled_task_query.filter(CrawlTask.status.in_(["pending", "running"])).count()
+
+    source_rows = (
+        db.query(CrawlTask.source, func.count(CrawlTask.id))
+        .group_by(CrawlTask.source)
+        .all()
+    )
+    source_counts = {row[0] or "legacy": row[1] for row in source_rows}
+
+    recent_tasks = (
+        db.query(CrawlTask)
+        .filter(CrawlTask.source == "scheduled")
+        .order_by(CrawlTask.id.desc())
+        .limit(10)
+        .all()
+    )
+    recent_runs = (
+        db.query(ScheduledTaskRun)
+        .order_by(ScheduledTaskRun.started_at.desc())
+        .limit(10)
+        .all()
+    )
+
+    return {
+        "server_time": current,
+        "health": {
+            "status": health_status,
+            "message": health_message,
+            "seconds_since_last_run": seconds_since_last_run,
+        },
+        "scheduler": {
+            "last_run_at": last_run.started_at if last_run else None,
+            "last_finished_at": last_run.finished_at if last_run else None,
+            "last_status": last_run.status if last_run else None,
+            "last_due_count": last_run.due_count if last_run else 0,
+            "last_dispatched_count": last_run.dispatched_count if last_run else 0,
+            "last_failed_count": last_run.failed_count if last_run else 0,
+        },
+        "tasks": {
+            "enabled_count": enabled_count,
+            "disabled_count": disabled_count,
+            "due_count": due_count,
+            "last_24h_total": last_24h_total,
+            "last_24h_success": last_24h_success,
+            "last_24h_failed": last_24h_failed,
+            "last_24h_running": last_24h_running,
+            "source_counts": source_counts,
+        },
+        "recent_tasks": [
+            {
+                "id": task.id,
+                "task_type": task.task_type,
+                "status": task.status,
+                "source": task.source or "legacy",
+                "source_id": task.source_id,
+                "keyword_id": task.keyword_id,
+                "videos_crawled": task.videos_crawled or 0,
+                "started_at": task.started_at,
+                "completed_at": task.completed_at,
+                "error_message": task.error_message,
+            }
+            for task in recent_tasks
+        ],
+        "recent_runs": [
+            {
+                "id": run.id,
+                "status": run.status,
+                "started_at": run.started_at,
+                "finished_at": run.finished_at,
+                "due_count": run.due_count,
+                "dispatched_count": run.dispatched_count,
+                "failed_count": run.failed_count,
+                "triggered_task_ids": parse_task_ids(run.triggered_task_ids),
+                "error_message": run.error_message,
+            }
+            for run in recent_runs
+        ],
+    }
 
 
 def get_target_label(db: Session, task: ScheduledTask) -> str | None:

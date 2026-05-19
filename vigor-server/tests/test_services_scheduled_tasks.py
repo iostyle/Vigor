@@ -1,7 +1,11 @@
 from datetime import datetime, timedelta
 
 from app.models.scheduled_task import ScheduledTask
-from app.services.scheduled_tasks import compute_next_run, run_due_scheduled_tasks
+from app.models.scheduled_task_run import ScheduledTaskRun
+from app.services.scheduled_tasks import (
+    compute_next_run,
+    run_due_scheduled_tasks,
+)
 
 
 def test_compute_next_run_interval():
@@ -60,16 +64,24 @@ def test_run_due_scheduled_tasks_dispatches(monkeypatch):
             ]
 
     class FakeSession:
+        def __init__(self):
+            self.runs = []
+
         def query(self, model):
             return FakeQuery()
 
         def add(self, obj):
             self.obj = obj
+            if isinstance(obj, ScheduledTaskRun) and obj not in self.runs:
+                self.runs.append(obj)
 
         def commit(self):
             pass
 
-    def fake_dispatch(db, task):
+        def refresh(self, obj):
+            obj.id = obj.id or 1
+
+    def fake_dispatch(db, task, source="scheduled", source_id=None):
         calls.append(task.id)
         return [101]
 
@@ -79,3 +91,163 @@ def test_run_due_scheduled_tasks_dispatches(monkeypatch):
 
     assert dispatched == 1
     assert calls == [1]
+
+
+def test_run_due_scheduled_tasks_passes_source_to_dispatcher(monkeypatch):
+    captured: dict[str, int] = {}
+
+    class FakeQuery:
+        def filter(self, *args):
+            return self
+
+        def all(self):
+            return [
+                ScheduledTask(
+                    id=7,
+                    name="due",
+                    task_kind="crawl",
+                    target_mode="keyword",
+                    target_id=1,
+                    platform="bilibili",
+                    schedule_type="interval",
+                    interval_minutes=60,
+                    enabled=True,
+                    next_run_at=datetime(2026, 5, 19, 8, 0, 0),
+                )
+            ]
+
+    class FakeSession:
+        def __init__(self):
+            self.runs = []
+
+        def query(self, model):
+            return FakeQuery()
+
+        def add(self, obj):
+            self.obj = obj
+            if isinstance(obj, ScheduledTaskRun) and obj not in self.runs:
+                self.runs.append(obj)
+
+        def commit(self):
+            pass
+
+        def refresh(self, obj):
+            obj.id = obj.id or 1
+
+    def fake_dispatch(db, task, source, source_id):
+        captured["source"] = source
+        captured["source_id"] = source_id
+        return [101]
+
+    monkeypatch.setattr("app.services.scheduled_tasks.dispatch_scheduled_task", fake_dispatch)
+
+    run_due_scheduled_tasks(FakeSession(), datetime(2026, 5, 19, 9, 0, 0))
+
+    assert captured == {"source": "scheduled", "source_id": 7}
+
+
+def test_run_due_scheduled_tasks_records_run(monkeypatch):
+    class FakeQuery:
+        def filter(self, *args):
+            return self
+
+        def all(self):
+            return [
+                ScheduledTask(
+                    id=9,
+                    name="due",
+                    task_kind="crawl",
+                    target_mode="keyword",
+                    target_id=1,
+                    platform="bilibili",
+                    schedule_type="interval",
+                    interval_minutes=60,
+                    enabled=True,
+                    next_run_at=datetime(2026, 5, 19, 8, 0, 0),
+                )
+            ]
+
+    class FakeSession:
+        def __init__(self):
+            self.runs: list[ScheduledTaskRun] = []
+
+        def query(self, model):
+            return FakeQuery()
+
+        def add(self, obj):
+            if isinstance(obj, ScheduledTaskRun) and obj not in self.runs:
+                self.runs.append(obj)
+
+        def commit(self):
+            pass
+
+        def refresh(self, obj):
+            obj.id = obj.id or 1
+
+    monkeypatch.setattr(
+        "app.services.scheduled_tasks.dispatch_scheduled_task",
+        lambda db, task, source="scheduled", source_id=None: [501, 502],
+    )
+    session = FakeSession()
+
+    dispatched = run_due_scheduled_tasks(session, datetime(2026, 5, 19, 9, 0, 0))
+
+    assert dispatched == 1
+    assert len(session.runs) == 1
+    assert session.runs[0].status == "success"
+    assert session.runs[0].due_count == 1
+    assert session.runs[0].dispatched_count == 1
+    assert session.runs[0].failed_count == 0
+    assert session.runs[0].triggered_task_ids == "[501, 502]"
+
+
+def test_run_due_scheduled_tasks_records_error_summary(monkeypatch):
+    class FakeQuery:
+        def filter(self, *args):
+            return self
+
+        def all(self):
+            return [
+                ScheduledTask(
+                    id=11,
+                    name="broken",
+                    task_kind="crawl",
+                    target_mode="keyword",
+                    target_id=1,
+                    platform="bilibili",
+                    schedule_type="interval",
+                    interval_minutes=60,
+                    enabled=True,
+                    next_run_at=datetime(2026, 5, 19, 8, 0, 0),
+                )
+            ]
+
+    class FakeSession:
+        def __init__(self):
+            self.runs: list[ScheduledTaskRun] = []
+
+        def query(self, model):
+            return FakeQuery()
+
+        def add(self, obj):
+            if isinstance(obj, ScheduledTaskRun) and obj not in self.runs:
+                self.runs.append(obj)
+
+        def commit(self):
+            pass
+
+        def refresh(self, obj):
+            obj.id = obj.id or 1
+
+    def fake_dispatch(db, task, source="scheduled", source_id=None):
+        raise RuntimeError("keyword disabled")
+
+    monkeypatch.setattr("app.services.scheduled_tasks.dispatch_scheduled_task", fake_dispatch)
+    session = FakeSession()
+
+    dispatched = run_due_scheduled_tasks(session, datetime(2026, 5, 19, 9, 0, 0))
+
+    assert dispatched == 0
+    assert session.runs[0].status == "failed"
+    assert session.runs[0].failed_count == 1
+    assert session.runs[0].error_message == "定时任务 11: keyword disabled"

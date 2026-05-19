@@ -29,9 +29,7 @@ def test_celery_basic_config():
 
 def test_celery_beat_schedule():
     schedule = celery_app.conf.beat_schedule
-    assert "crawl_all_keywords" in schedule
-    assert "update_videos" in schedule
     assert "run_scheduled_tasks" in schedule
-    assert schedule["crawl_all_keywords"]["options"]["queue"] == "crawler"
-    assert schedule["update_videos"]["options"]["queue"] == "updater"
     assert schedule["run_scheduled_tasks"]["options"]["queue"] == "updater"
+    assert "crawl_all_keywords" not in schedule
+    assert "update_videos" not in schedule

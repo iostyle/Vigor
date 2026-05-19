@@ -28,16 +28,6 @@ celery_app.conf.update(
         "updater": {"exchange": "updater", "routing_key": "updater"},
     },
     beat_schedule={
-        "crawl_all_keywords": {
-            "task": "app.tasks.crawler.crawl_all_keywords",
-            "schedule": crontab(minute=0),
-            "options": {"queue": "crawler"},
-        },
-        "update_videos": {
-            "task": "app.tasks.updater.update_videos",
-            "schedule": crontab(minute=0),
-            "options": {"queue": "updater"},
-        },
         "run_scheduled_tasks": {
             "task": "app.tasks.scheduler.run_scheduled_tasks",
             "schedule": crontab(minute="*"),

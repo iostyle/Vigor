@@ -5,6 +5,74 @@
       <p class="subtitle">配置自动爬取与数据更新节奏,支持启停、编辑和删除</p>
     </div>
 
+    <section class="monitor-section">
+      <div class="monitor-head">
+        <div>
+          <div class="section-kicker">Scheduler Monitor</div>
+          <h2>调度器运行状态</h2>
+        </div>
+        <n-tag :type="healthTagType" round>{{ healthStatusText }}</n-tag>
+      </div>
+
+      <div class="health-strip">
+        <div>
+          <span class="metric-label">状态说明</span>
+          <strong>{{ monitor?.health.message || '正在读取调度器状态' }}</strong>
+        </div>
+        <div>
+          <span class="metric-label">最近扫描</span>
+          <strong>{{ formatRelativeSeconds(monitor?.health.seconds_since_last_run) }}</strong>
+        </div>
+        <div>
+          <span class="metric-label">服务时间</span>
+          <strong>{{ formatMinuteTime(monitor?.server_time || null) }}</strong>
+        </div>
+      </div>
+
+      <div class="monitor-grid">
+        <div v-for="item in monitorStats" :key="item.label" class="monitor-stat">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+        </div>
+      </div>
+
+      <div class="monitor-columns">
+        <div class="monitor-panel">
+          <div class="panel-title">
+            <span>最近扫描</span>
+            <small>{{ loadingMonitor ? '刷新中' : '5 秒自动刷新' }}</small>
+          </div>
+          <div v-if="monitor?.recent_runs.length" class="run-list">
+            <div v-for="run in monitor.recent_runs" :key="run.id" class="run-row">
+              <div>
+                <n-tag size="small" :type="runStatusTagType(run.status)" round>
+                  {{ runStatusText(run.status) }}
+                </n-tag>
+                <span class="run-time">{{ formatMinuteTime(run.started_at) }}</span>
+              </div>
+              <span>应触发 {{ run.due_count }} / 已派发 {{ run.dispatched_count }} / 失败 {{ run.failed_count }}</span>
+            </div>
+          </div>
+          <n-empty v-else size="small" description="暂无扫描记录" />
+        </div>
+
+        <div class="monitor-panel">
+          <div class="panel-title">
+            <span>最近定时派发任务</span>
+            <small>按任务 ID 倒序</small>
+          </div>
+          <div v-if="monitor?.recent_tasks.length" class="task-list">
+            <div v-for="task in monitor.recent_tasks" :key="task.id" class="task-row">
+              <span class="task-id">#{{ task.id }}</span>
+              <span class="task-main">{{ taskTypeText(task.task_type) }} · {{ taskStatusText(task.status) }}</span>
+              <span class="task-extra">{{ task.videos_crawled }} 条 · {{ formatMinuteTime(task.started_at) }}</span>
+            </div>
+          </div>
+          <n-empty v-else size="small" description="暂无定时派发任务" />
+        </div>
+      </div>
+    </section>
+
     <div class="trigger-section">
       <n-card class="trigger-card" title="触发新爬取" :bordered="false">
         <n-form class="trigger-form" :model="crawlForm" label-placement="left" label-width="86">
@@ -171,11 +239,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, reactive, ref } from 'vue'
+import { computed, defineComponent, h, onMounted, onUnmounted, reactive, ref } from 'vue'
 import {
   NButton,
   NCard,
   NDataTable,
+  NEmpty,
   NForm,
   NFormItem,
   NInput,
@@ -199,6 +268,7 @@ import {
   type ScheduledTask,
   type ScheduledTaskInput,
   type ScheduledTaskKind,
+  type ScheduledTaskMonitor,
   type ScheduledTargetMode
 } from '@/api/scheduledTask'
 import type { Keyword } from '@/types/keyword'
@@ -328,6 +398,9 @@ const loadingKeywords = ref(false)
 const loadingCategories = ref(false)
 const scheduledTasks = ref<ScheduledTask[]>([])
 const loadingTasks = ref(false)
+const monitor = ref<ScheduledTaskMonitor | null>(null)
+const loadingMonitor = ref(false)
+let monitorTimer: ReturnType<typeof window.setInterval> | null = null
 const saving = ref(false)
 
 const pagination = reactive({
@@ -349,6 +422,30 @@ const pagination = reactive({
 
 const canSaveCrawl = computed(() => isValidForm(crawlForm))
 const canSaveUpdate = computed(() => isValidForm(updateForm))
+const healthStatusText = computed(() => {
+  const status = monitor.value?.health.status
+  if (status === 'healthy') return '运行正常'
+  if (status === 'delayed') return '等待触发'
+  if (status === 'stalled') return '扫描异常'
+  return '读取中'
+})
+const healthTagType = computed(() => {
+  const status = monitor.value?.health.status
+  if (status === 'healthy') return 'success'
+  if (status === 'delayed') return 'warning'
+  if (status === 'stalled') return 'error'
+  return 'default'
+})
+const monitorStats = computed(() => [
+  { label: '启用定时任务', value: monitor.value?.tasks.enabled_count ?? '-' },
+  { label: '已暂停', value: monitor.value?.tasks.disabled_count ?? '-' },
+  { label: '待触发', value: monitor.value?.tasks.due_count ?? '-' },
+  { label: '24h 派发', value: monitor.value?.tasks.last_24h_total ?? '-' },
+  { label: '24h 成功', value: monitor.value?.tasks.last_24h_success ?? '-' },
+  { label: '24h 失败', value: monitor.value?.tasks.last_24h_failed ?? '-' },
+  { label: '24h 运行中', value: monitor.value?.tasks.last_24h_running ?? '-' },
+  { label: '上次触发', value: monitor.value?.scheduler.last_dispatched_count ?? '-' }
+])
 
 const columns: DataTableColumns<ScheduledTask> = [
   { title: 'ID', key: 'id', width: 64 },
@@ -448,6 +545,48 @@ function formatMinuteTime(value: string | null) {
   })
 }
 
+function formatRelativeSeconds(value: number | null | undefined) {
+  if (value === null || value === undefined) return '暂无记录'
+  if (value < 60) return `${value} 秒前`
+  if (value < 3600) return `${Math.floor(value / 60)} 分钟前`
+  return `${Math.floor(value / 3600)} 小时前`
+}
+
+function runStatusTagType(status: string) {
+  if (status === 'success') return 'success'
+  if (status === 'failed') return 'error'
+  if (status === 'running') return 'info'
+  return 'default'
+}
+
+function runStatusText(status: string) {
+  const map: Record<string, string> = {
+    success: '完成',
+    failed: '失败',
+    running: '扫描中'
+  }
+  return map[status] || status
+}
+
+function taskTypeText(type: string) {
+  const map: Record<string, string> = {
+    crawl: '爬取',
+    update: '更新',
+    comment_summary: '摘要'
+  }
+  return map[type] || type
+}
+
+function taskStatusText(status: string) {
+  const map: Record<string, string> = {
+    pending: '等待中',
+    running: '运行中',
+    success: '成功',
+    failed: '失败'
+  }
+  return map[status] || status
+}
+
 function isValidForm(form: ScheduleForm) {
   if (!form.target_id) return false
   if (form.task_kind === 'crawl' && form.target_mode === 'video') return false
@@ -517,6 +656,17 @@ async function fetchScheduledTasks() {
     message.error('加载定时任务失败')
   } finally {
     loadingTasks.value = false
+  }
+}
+
+async function fetchMonitor(showError = false) {
+  loadingMonitor.value = true
+  try {
+    monitor.value = await scheduledTaskApi.monitor()
+  } catch {
+    if (showError) message.error('加载调度器监控失败')
+  } finally {
+    loadingMonitor.value = false
   }
 }
 
@@ -615,6 +765,15 @@ onMounted(() => {
   fetchKeywords()
   fetchCategories()
   fetchScheduledTasks()
+  fetchMonitor(true)
+  monitorTimer = window.setInterval(() => fetchMonitor(), 5000)
+})
+
+onUnmounted(() => {
+  if (monitorTimer) {
+    window.clearInterval(monitorTimer)
+    monitorTimer = null
+  }
 })
 </script>
 
@@ -634,6 +793,184 @@ onMounted(() => {
   font-size: 14px;
   color: var(--text-secondary);
   margin: 0;
+}
+
+.monitor-section {
+  padding: 24px;
+  margin-bottom: var(--spacing-xl);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+}
+
+.monitor-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.section-kicker {
+  margin-bottom: 6px;
+  color: #007aff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.monitor-head h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.health-strip {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 1fr;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--bg-secondary);
+}
+
+.health-strip > div {
+  min-width: 0;
+}
+
+.metric-label,
+.monitor-stat span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.health-strip strong,
+.monitor-stat strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.monitor-stat {
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-primary);
+}
+
+.monitor-stat strong {
+  font-size: 24px;
+}
+
+.monitor-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.monitor-panel {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-primary);
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.panel-title small {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.run-list,
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.run-row,
+.task-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.run-row:last-child,
+.task-row:last-child {
+  border-bottom: 0;
+}
+
+.run-row > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.run-row > span,
+.task-main,
+.task-extra {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-time,
+.task-main {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.task-id {
+  width: 52px;
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-weight: 650;
+}
+
+.task-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.task-extra {
+  flex: 0 1 auto;
+  max-width: 190px;
 }
 
 .trigger-section {
@@ -706,8 +1043,27 @@ onMounted(() => {
 }
 
 @media (max-width: 900px) {
+  .health-strip,
+  .monitor-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .monitor-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .trigger-section {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 560px) {
+  .monitor-section {
+    padding: 18px;
+  }
+
+  .monitor-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

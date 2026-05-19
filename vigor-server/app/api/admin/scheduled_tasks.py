@@ -9,11 +9,17 @@ from app.models.scheduled_task import ScheduledTask
 from app.schemas.scheduled_task import (
     ScheduledTaskCreate,
     ScheduledTaskListResponse,
+    ScheduledTaskMonitorResponse,
     ScheduledTaskResponse,
     ScheduledTaskToggle,
     ScheduledTaskUpdate,
 )
-from app.services.scheduled_tasks import compute_next_run, get_target_label, validate_scheduled_task
+from app.services.scheduled_tasks import (
+    compute_next_run,
+    get_scheduler_monitor,
+    get_target_label,
+    validate_scheduled_task,
+)
 
 router = APIRouter(
     prefix="/api/admin/scheduled-tasks",
@@ -70,6 +76,13 @@ def list_scheduled_tasks(
         .all()
     )
     return ScheduledTaskListResponse(total=total, data=[_to_response(db, task) for task in tasks])
+
+
+@router.get("/monitor", response_model=ScheduledTaskMonitorResponse)
+def get_scheduled_task_monitor(
+    db: Session = Depends(get_db),
+) -> ScheduledTaskMonitorResponse:
+    return ScheduledTaskMonitorResponse.model_validate(get_scheduler_monitor(db))
 
 
 @router.post("", response_model=ScheduledTaskResponse, status_code=status.HTTP_201_CREATED)
