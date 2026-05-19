@@ -49,6 +49,9 @@ htmlcov/
 *.log
 *.pid
 
+# Vigor local dev runtime
+.vigor-dev/
+
 # Claude Code runtime (lock files and watermarks, not config/state)
 .claude/tasks/*/.lock
 .claude/tasks/*/.highwatermark

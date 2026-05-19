@@ -1,4 +1,11 @@
-version: '3.8'
+x-api-env: &api-env
+  env_file:
+    - .env
+  environment:
+    DATABASE_URL: postgresql://vigor:${POSTGRES_PASSWORD:-vigor_password}@postgres:5432/vigor_db
+    REDIS_URL: redis://redis:6379/0
+    CELERY_BROKER_URL: redis://redis:6379/1
+    CELERY_RESULT_BACKEND: redis://redis:6379/2
 
 services:
   postgres:
@@ -30,15 +37,11 @@ services:
       retries: 5
 
   api:
+    <<: *api-env
     build: .
     container_name: vigor-api
     ports:
       - "8000:8000"
-    environment:
-      DATABASE_URL: postgresql+asyncpg://vigor:${POSTGRES_PASSWORD:-vigor_password}@postgres:5432/vigor_db
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/2
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,14 +49,10 @@ services:
         condition: service_healthy
 
   celery-crawler:
+    <<: *api-env
     build: .
     container_name: vigor-celery-crawler
     command: celery -A app.celery_app worker -Q crawler --concurrency=2
-    environment:
-      DATABASE_URL: postgresql+asyncpg://vigor:${POSTGRES_PASSWORD:-vigor_password}@postgres:5432/vigor_db
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/2
     depends_on:
       postgres:
         condition: service_healthy
@@ -61,14 +60,10 @@ services:
         condition: service_healthy
 
   celery-processor:
+    <<: *api-env
     build: .
     container_name: vigor-celery-processor
     command: celery -A app.celery_app worker -Q processor --concurrency=4
-    environment:
-      DATABASE_URL: postgresql+asyncpg://vigor:${POSTGRES_PASSWORD:-vigor_password}@postgres:5432/vigor_db
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/2
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,14 +71,10 @@ services:
         condition: service_healthy
 
   celery-updater:
+    <<: *api-env
     build: .
     container_name: vigor-celery-updater
     command: celery -A app.celery_app worker -Q updater --concurrency=2
-    environment:
-      DATABASE_URL: postgresql+asyncpg://vigor:${POSTGRES_PASSWORD:-vigor_password}@postgres:5432/vigor_db
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/2
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,14 +82,10 @@ services:
         condition: service_healthy
 
   celery-beat:
+    <<: *api-env
     build: .
     container_name: vigor-celery-beat
     command: celery -A app.celery_app beat
-    environment:
-      DATABASE_URL: postgresql+asyncpg://vigor:${POSTGRES_PASSWORD:-vigor_password}@postgres:5432/vigor_db
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/2
     depends_on:
       postgres:
         condition: service_healthy

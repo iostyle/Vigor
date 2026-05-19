@@ -1,3 +1,24 @@
+# Vigor
+
+## 快速运行
+
+新设备 clone 后可参考 [快速运行文档](docs/QUICKSTART.md)。
+
+最短路径：
+
+```bash
+chmod +x scripts/dev-start.sh scripts/dev-stop.sh
+./scripts/dev-start.sh
+```
+
+日常修改后需要重启前后端或 Celery 时：
+
+```bash
+chmod +x scripts/dev-restart.sh scripts/dev-status.sh
+./scripts/dev-status.sh
+./scripts/dev-restart.sh
+```
+
 # 客户端 
 <img width="1919" height="908" alt="image" src="https://github.com/user-attachments/assets/0a19c532-929a-4f9f-ae55-1b561f71c557" />
 <img width="1919" height="911" alt="image" src="https://github.com/user-attachments/assets/f02ec664-d0c5-4413-953b-9425d9360691" />
