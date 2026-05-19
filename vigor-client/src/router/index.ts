@@ -47,6 +47,11 @@ const router = createRouter({
           path: 'tasks',
           name: 'admin-tasks',
           component: () => import('@/views/admin/TasksPage.vue')
+        },
+        {
+          path: 'scheduled-tasks',
+          name: 'admin-scheduled-tasks',
+          component: () => import('@/views/admin/ScheduledTasksPage.vue')
         }
       ]
     }

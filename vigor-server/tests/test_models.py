@@ -2,7 +2,6 @@ from app.models.keyword import Keyword
 from app.models.video import Video
 from app.models.comment import Comment, CommentSummary
 from app.models.task import CrawlTask
-from app.database import Base
 
 
 def test_keyword_model_structure():

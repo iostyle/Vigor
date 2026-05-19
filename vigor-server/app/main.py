@@ -7,6 +7,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.api.admin.categories import router as admin_categories_router
 from app.api.admin.keywords import router as admin_keywords_router
+from app.api.admin.scheduled_tasks import router as admin_scheduled_tasks_router
 from app.api.admin.tasks import router as admin_tasks_router
 from app.api.admin.videos import router as admin_videos_router
 from app.api.internal.categories import router as internal_categories_router
@@ -39,6 +40,7 @@ app.add_middleware(
 app.include_router(admin_categories_router, prefix="/api/admin")
 app.include_router(admin_keywords_router, prefix="/api/admin")
 app.include_router(admin_tasks_router)
+app.include_router(admin_scheduled_tasks_router)
 app.include_router(admin_videos_router)
 app.include_router(internal_categories_router, prefix="/api/internal")
 app.include_router(internal_videos_router, prefix="/api/internal")

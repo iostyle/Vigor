@@ -45,6 +45,14 @@
             </svg>
             <span>任务管理</span>
           </router-link>
+          <router-link to="/admin/scheduled-tasks" class="nav-item">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path
+                d="M12 2a10 10 0 1 0 10 10h-2a8 8 0 1 1-2.34-5.66L15 9h7V2l-2.9 2.9A9.96 9.96 0 0 0 12 2zm1 5h-2v6l5 3 1-1.73-4-2.27V7z"
+              />
+            </svg>
+            <span>定时任务</span>
+          </router-link>
         </nav>
         <div class="sidebar-footer">
           <button

@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from app.config import settings
 from app.database import Base
 # 导入所有模型确保被注册到 metadata
-from app.models import Keyword, Video, Comment, CommentSummary, CrawlTask
+from app.models import Keyword, Video, Comment, CommentSummary, CrawlTask, ScheduledTask
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

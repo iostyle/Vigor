@@ -1,6 +1,6 @@
 from typing import Generator
 
-from fastapi import Depends, HTTPException, Security, status
+from fastapi import HTTPException, Security, status
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 

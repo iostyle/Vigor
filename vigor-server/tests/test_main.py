@@ -28,6 +28,7 @@ def test_openapi_includes_admin_and_internal_routes():
     assert "/api/admin/tasks" in paths
     assert "/api/admin/tasks/crawl" in paths
     assert "/api/admin/tasks/update" in paths
+    assert "/api/admin/scheduled-tasks" in paths
     assert "/api/admin/videos" in paths
     assert "/api/internal/videos" in paths
     assert "/api/internal/stats/keywords" in paths or any(

@@ -10,6 +10,7 @@ celery_app = Celery(
     include=[
         "app.tasks.crawler",
         "app.tasks.processor",
+        "app.tasks.scheduler",
         "app.tasks.updater",
     ],
 )
@@ -35,6 +36,11 @@ celery_app.conf.update(
         "update_videos": {
             "task": "app.tasks.updater.update_videos",
             "schedule": crontab(minute=0),
+            "options": {"queue": "updater"},
+        },
+        "run_scheduled_tasks": {
+            "task": "app.tasks.scheduler.run_scheduled_tasks",
+            "schedule": crontab(minute="*"),
             "options": {"queue": "updater"},
         },
     },
