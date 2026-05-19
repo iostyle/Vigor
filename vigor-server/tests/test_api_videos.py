@@ -9,6 +9,7 @@ from app.api.deps import get_db, verify_api_key
 from app.models.category import Category
 from app.models.comment import CommentSummary
 from app.models.keyword import Keyword
+from app.models.task import CrawlTask
 from app.models.video import Video
 
 
@@ -207,6 +208,38 @@ class TestGetVideo:
     def test_404_when_missing(self, client, seed_data):
         resp = client.get("/api/admin/videos/99999")
         assert resp.status_code == 404
+
+
+class TestSummaryTaskStatus:
+    def test_returns_running_summary_task(self, client, seed_data, test_db):
+        video = seed_data["videos"][1]
+        task = CrawlTask(
+            keyword_id=video.keyword_id,
+            video_ids=f"[{video.id}]",
+            task_type="summary",
+            status="running",
+            videos_crawled=0,
+            started_at=datetime.now(),
+        )
+        test_db.add(task)
+        test_db.commit()
+        test_db.refresh(task)
+
+        resp = client.get(f"/api/admin/videos/{video.id}/summary-task")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["task_id"] == task.id
+        assert body["status"] == "running"
+        assert body["is_running"] is True
+
+    def test_returns_not_running_without_summary_task(self, client, seed_data):
+        video = seed_data["videos"][1]
+
+        resp = client.get(f"/api/admin/videos/{video.id}/summary-task")
+
+        assert resp.status_code == 200
+        assert resp.json() == {"task_id": None, "status": None, "is_running": False}
 
 
 class TestTriggerUpdate:

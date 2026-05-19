@@ -354,7 +354,21 @@ async function handleGenerateSummary() {
   }
 }
 
+async function syncSummaryTaskStatus() {
+  if (!props.video?.id) return
+  try {
+    const status = await videoApi.getSummaryTaskStatus(props.video.id)
+    if (status.is_running) {
+      generating.value = true
+      pollForSummary(props.video.id, props.video.comment_summary?.generated_at || null)
+    }
+  } catch {
+    // 状态查询失败不阻塞详情展示,用户仍可手动点击生成
+  }
+}
+
 function pollForSummary(videoId: number, baselineGeneratedAt: string | null) {
+  stopPolling()
   let attempts = 0
   const maxAttempts = 24 // 最多 120s (24 * 5s)
   pollTimer = window.setInterval(async () => {
@@ -395,8 +409,11 @@ watch(
     showComments.value = false
     loadingComments.value = false
     generating.value = false
+    syncSummaryTaskStatus()
   }
 )
+
+syncSummaryTaskStatus()
 
 const originalUrl = computed(() => {
   if (!props.video) return '#'

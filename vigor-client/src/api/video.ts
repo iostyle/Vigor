@@ -7,6 +7,12 @@ export interface GenerateSummaryResponse {
   status: string
 }
 
+export interface SummaryTaskStatusResponse {
+  task_id: number | null
+  status: string | null
+  is_running: boolean
+}
+
 export type VideoStatus = 'active' | 'hidden' | 'archived'
 
 export const videoApi = {
@@ -28,6 +34,10 @@ export const videoApi = {
 
   generateSummary(videoId: number): Promise<GenerateSummaryResponse> {
     return request.post(`/api/admin/videos/${videoId}/generate-summary`)
+  },
+
+  getSummaryTaskStatus(videoId: number): Promise<SummaryTaskStatusResponse> {
+    return request.get(`/api/admin/videos/${videoId}/summary-task`)
   },
 
   adminList(params: VideoListParams): Promise<VideoListResponse> {

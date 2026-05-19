@@ -12,6 +12,7 @@ from app.models.video import Video
 from pydantic import BaseModel
 
 from app.schemas.video import VideoListResponse, VideoResponse
+from app.models.task import CrawlTask
 
 router = APIRouter(
     prefix="/api/admin/videos",
@@ -28,6 +29,13 @@ VideoStatusFilter = Literal["active", "hidden", "archived", "all"]
 
 class VideoStatusUpdate(BaseModel):
     status: VideoStatus
+
+
+class SummaryTaskStatusResponse(BaseModel):
+    task_id: int | None = None
+    status: str | None = None
+    is_running: bool = False
+
 
 _TIME_WINDOW_DELTAS: dict[str, Optional[timedelta]] = {
     "24h": timedelta(hours=24),
@@ -230,3 +238,31 @@ def trigger_generate_summary(
         "celery_task_id": result.id,
         "status": "pending",
     }
+
+
+@router.get("/{video_id}/summary-task", response_model=SummaryTaskStatusResponse)
+def get_summary_task_status(
+    video_id: int,
+    db: Session = Depends(get_db),
+) -> SummaryTaskStatusResponse:
+    video = db.query(Video.id).filter(Video.id == video_id).first()
+    if video is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Video not found"
+        )
+
+    task = (
+        db.query(CrawlTask)
+        .filter(CrawlTask.task_type == "summary")
+        .filter(CrawlTask.video_ids == f"[{video_id}]")
+        .order_by(CrawlTask.id.desc())
+        .first()
+    )
+    if task is None:
+        return SummaryTaskStatusResponse()
+
+    return SummaryTaskStatusResponse(
+        task_id=task.id,
+        status=task.status,
+        is_running=task.status in {"pending", "running"},
+    )
