@@ -257,6 +257,24 @@ const columns: DataTableColumns<Task> = [
     }
   },
   {
+    title: '来源',
+    key: 'source',
+    width: 120,
+    render(row) {
+      const sourceMap: Record<
+        string,
+        { type: 'default' | 'success' | 'warning' | 'error' | 'info'; text: string }
+      > = {
+        manual: { type: 'info', text: '手动' },
+        scheduled: { type: 'warning', text: row.source_id ? `定时 #${row.source_id}` : '定时' },
+        system: { type: 'default', text: '系统' },
+        legacy: { type: 'default', text: '历史' }
+      }
+      const source = sourceMap[row.source] || { type: 'default', text: row.source || '-' }
+      return h(NTag, { type: source.type }, { default: () => source.text })
+    }
+  },
+  {
     title: '状态',
     key: 'status',
     width: 100,

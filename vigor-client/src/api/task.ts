@@ -58,6 +58,8 @@ export interface Task {
   id: number
   keyword_id: number
   task_type: string
+  source: 'manual' | 'scheduled' | 'system' | 'legacy'
+  source_id: number | null
   status: string
   videos_crawled: number
   started_at: string

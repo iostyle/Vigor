@@ -4,6 +4,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
 
 CrawlTaskStatus = Literal["pending", "running", "success", "failed"]
+CrawlTaskSource = Literal["manual", "scheduled", "system", "legacy"]
 
 
 def _as_utc(value: Optional[datetime]) -> Optional[str]:
@@ -23,6 +24,8 @@ class CrawlTaskResponse(BaseModel):
     keyword_id: Optional[int] = None
     video_ids: list[int] = []
     task_type: str
+    source: CrawlTaskSource = "manual"
+    source_id: Optional[int] = None
     status: CrawlTaskStatus
     videos_crawled: int = 0
     error_message: Optional[str] = None
@@ -47,6 +50,11 @@ class CrawlTaskResponse(BaseModel):
             if isinstance(parsed, list):
                 return [int(x) for x in parsed if x is not None]
         return []
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def _normalize_source(cls, value):
+        return value or "legacy"
 
     @field_serializer("started_at", "completed_at")
     def _ser_dt(self, value: Optional[datetime]) -> Optional[str]:

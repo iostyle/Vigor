@@ -3,7 +3,7 @@ from datetime import datetime
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -102,6 +102,7 @@ class TestTriggerCrawl:
         assert task is not None
         assert task.task_type == "crawl"
         assert task.keyword_id == kw.id
+        assert task.source == "manual"
 
     def test_returns_404_when_keyword_missing(self, client):
         response = client.post(
@@ -132,6 +133,7 @@ class TestTriggerUpdate:
         body = response.json()
         task = client.session.query(CrawlTask).filter_by(id=body["task_id"]).first()
         assert task.task_type == "update"
+        assert task.source == "manual"
 
     def test_with_keyword_id(self, client):
         kw = _create_keyword(client.session)
@@ -190,6 +192,7 @@ class TestListTasks:
             task_type="crawl",
             status="success",
             videos_crawled=5,
+            source="manual",
             started_at=datetime(2024, 1, 1, 10, 0, 0),
         )
         t2 = CrawlTask(
@@ -197,6 +200,8 @@ class TestListTasks:
             task_type="update",
             status="success",
             videos_crawled=2,
+            source="scheduled",
+            source_id=3,
             started_at=datetime(2024, 1, 2, 10, 0, 0),
         )
         client.session.add_all([t1, t2])
@@ -209,7 +214,10 @@ class TestListTasks:
         assert body["total"] == 2
         assert len(body["data"]) == 2
         assert body["data"][0]["task_type"] == "update"
+        assert body["data"][0]["source"] == "scheduled"
+        assert body["data"][0]["source_id"] == 3
         assert body["data"][1]["task_type"] == "crawl"
+        assert body["data"][1]["source"] == "manual"
 
     def test_pagination(self, client):
         kw = _create_keyword(client.session)
@@ -236,3 +244,27 @@ class TestListTasks:
         body = response.json()
         assert body["total"] == 5
         assert len(body["data"]) == 1
+
+    def test_legacy_null_source_is_returned_as_legacy(self, client):
+        kw = _create_keyword(client.session)
+        task = CrawlTask(
+            keyword_id=kw.id,
+            task_type="crawl",
+            status="running",
+            videos_crawled=0,
+            source=None,
+            started_at=datetime(2024, 1, 3, 10, 0, 0),
+        )
+        client.session.add(task)
+        client.session.commit()
+        client.session.execute(
+            text("update crawl_tasks set source = null where id = :task_id"),
+            {"task_id": task.id},
+        )
+        client.session.commit()
+
+        response = client.get("/api/admin/tasks?page=1&page_size=20")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["data"][0]["source"] == "legacy"

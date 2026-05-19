@@ -187,6 +187,7 @@ def crawl_keyword_task(self, keyword_id: int, platform: str = "douyin", task_id:
             task_record = CrawlTask(
                 keyword_id=keyword_id,
                 task_type="crawl",
+                source="system",
                 status="running",
                 started_at=datetime.utcnow(),
             )
@@ -197,6 +198,7 @@ def crawl_keyword_task(self, keyword_id: int, platform: str = "douyin", task_id:
         task_record = CrawlTask(
             keyword_id=keyword_id,
             task_type="crawl",
+            source="system",
             status="running",
             started_at=datetime.utcnow(),
         )

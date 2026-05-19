@@ -9,6 +9,8 @@ class CrawlTask(Base):
     keyword_id = Column(Integer, ForeignKey("keywords.id"))
     video_ids = Column(Text)
     task_type = Column(String(50))
+    source = Column(String(20), default="manual")
+    source_id = Column(Integer)
     status = Column(String(20))
     videos_crawled = Column(Integer, default=0)
     error_message = Column(Text)

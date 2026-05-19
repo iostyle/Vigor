@@ -43,12 +43,16 @@ def dispatch_crawl_keyword(
     keyword_id: int,
     platform: str,
     enqueue: Callable[..., str] = enqueue_celery_task,
+    source: str = "manual",
+    source_id: int | None = None,
 ) -> tuple[list[int], list[str]]:
     get_active_keyword_or_404(db, keyword_id)
 
     task = CrawlTask(
         keyword_id=keyword_id,
         task_type="crawl",
+        source=source,
+        source_id=source_id,
         status="pending",
         videos_crawled=0,
         started_at=datetime.utcnow(),
@@ -66,6 +70,8 @@ def dispatch_crawl_category(
     category_id: int,
     platform: str,
     enqueue: Callable[..., str] = enqueue_celery_task,
+    source: str = "manual",
+    source_id: int | None = None,
 ) -> tuple[list[int], list[str], int]:
     category = db.query(Category).filter(Category.id == category_id).first()
     if category is None:
@@ -93,6 +99,8 @@ def dispatch_crawl_category(
         task = CrawlTask(
             keyword_id=kw.id,
             task_type="crawl",
+            source=source,
+            source_id=source_id,
             status="pending",
             videos_crawled=0,
             started_at=datetime.utcnow(),
@@ -116,6 +124,8 @@ def dispatch_update_video(
     db: Session,
     video_id: int,
     enqueue: Callable[..., str] = enqueue_celery_task,
+    source: str = "manual",
+    source_id: int | None = None,
 ) -> tuple[list[int], list[str]]:
     video = db.query(Video).filter(Video.id == video_id).first()
     if not video:
@@ -123,7 +133,9 @@ def dispatch_update_video(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Video not found",
         )
-    task_ids, celery_task_ids = dispatch_update_videos(db, [video], enqueue)
+    task_ids, celery_task_ids = dispatch_update_videos(
+        db, [video], enqueue, source, source_id
+    )
     return task_ids, celery_task_ids
 
 
@@ -132,6 +144,8 @@ def dispatch_update_keyword(
     keyword_id: int,
     limit: int,
     enqueue: Callable[..., str] = enqueue_celery_task,
+    source: str = "manual",
+    source_id: int | None = None,
 ) -> tuple[list[int], list[str], int]:
     get_active_keyword_or_404(db, keyword_id)
     videos = (
@@ -147,7 +161,9 @@ def dispatch_update_keyword(
             detail="No videos found for this keyword",
         )
 
-    task_ids, celery_task_ids = dispatch_update_videos(db, videos, enqueue)
+    task_ids, celery_task_ids = dispatch_update_videos(
+        db, videos, enqueue, source, source_id
+    )
     return task_ids, celery_task_ids, len(videos)
 
 
@@ -156,6 +172,8 @@ def dispatch_update_category(
     category_id: int,
     limit: int,
     enqueue: Callable[..., str] = enqueue_celery_task,
+    source: str = "manual",
+    source_id: int | None = None,
 ) -> tuple[list[int], list[str], int]:
     category = db.query(Category).filter(Category.id == category_id).first()
     if category is None:
@@ -192,7 +210,9 @@ def dispatch_update_category(
             detail="No videos found in this category",
         )
 
-    task_ids, celery_task_ids = dispatch_update_videos(db, videos, enqueue)
+    task_ids, celery_task_ids = dispatch_update_videos(
+        db, videos, enqueue, source, source_id
+    )
     return task_ids, celery_task_ids, len(videos)
 
 
@@ -200,6 +220,8 @@ def dispatch_update_videos(
     db: Session,
     videos: list[Video],
     enqueue: Callable[..., str] = enqueue_celery_task,
+    source: str = "manual",
+    source_id: int | None = None,
 ) -> tuple[list[int], list[str]]:
     task_rows: list[CrawlTask] = []
     for video in videos:
@@ -207,6 +229,8 @@ def dispatch_update_videos(
             keyword_id=video.keyword_id,
             video_ids=json.dumps([video.id]),
             task_type="update",
+            source=source,
+            source_id=source_id,
             status="pending",
             videos_crawled=0,
             started_at=datetime.utcnow(),
