@@ -42,6 +42,7 @@ export const useVideoStore = defineStore('video', () => {
   const timeWindow = ref<'1d' | '3d' | '7d' | '15d' | '30d' | null>(
     loadFromStorage(STORAGE_KEYS.timeWindow, null)
   )
+  let selectRequestId = 0
 
   function buildListParams(params?: VideoListParams): VideoListParams {
     return {
@@ -94,14 +95,23 @@ export const useVideoStore = defineStore('video', () => {
   }
 
   async function selectVideo(videoId: number) {
+    const requestId = ++selectRequestId
+    const listVideo = videos.value.find((video) => video.id === videoId)
+    if (listVideo) {
+      selectedVideo.value = listVideo
+    }
     loading.value = true
     try {
       const video = await videoApi.getSummary(videoId)
-      selectedVideo.value = video
+      if (requestId === selectRequestId) {
+        selectedVideo.value = video
+      }
     } catch (error) {
       console.error('Failed to fetch video detail:', error)
     } finally {
-      loading.value = false
+      if (requestId === selectRequestId) {
+        loading.value = false
+      }
     }
   }
 
