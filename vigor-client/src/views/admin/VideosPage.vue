@@ -73,6 +73,7 @@ import { videoApi, type VideoStatus } from '@/api/video'
 import type { Video } from '@/types/video'
 import { keywordApi } from '@/api/keyword'
 import { buildKeywordOption } from '@/utils/keywordOptions'
+import { getOriginalVideoUrl } from '@/utils/media'
 
 const message = useMessage()
 
@@ -241,7 +242,12 @@ const columns: DataTableColumns<Video> = [
                 size: 'small',
                 text: true,
                 type: 'primary',
-                onClick: () => row.video_url && window.open(row.video_url, '_blank')
+                onClick: () => {
+                  const url = getOriginalVideoUrl(row)
+                  if (url !== '#') {
+                    window.open(url, '_blank')
+                  }
+                }
               },
               { default: () => '查看原视频' }
             ),

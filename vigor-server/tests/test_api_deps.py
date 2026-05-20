@@ -1,4 +1,4 @@
-from app.api.deps import get_db, verify_api_key
+from app.api.deps import get_db, verify_api_key, verify_api_key_value
 from app.config import settings
 
 
@@ -42,3 +42,7 @@ class TestVerifyApiKey:
             assert getattr(exc, "detail", None) == "Invalid or missing API key"
         else:
             raise AssertionError("Expected HTTPException")
+
+    def test_accepts_valid_query_key_value(self, monkeypatch):
+        monkeypatch.setattr(settings, "API_KEY", "secret")
+        assert verify_api_key_value("secret") == "secret"

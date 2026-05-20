@@ -1,3 +1,5 @@
+import type { Video } from '@/types/video'
+
 /**
  * 规范化封面 URL,处理 HTTP/HTTPS 和空值
  */
@@ -17,4 +19,28 @@ export function normalizeCover(url?: string | null): string {
   }
 
   return url
+}
+
+export function getOriginalVideoUrl(video?: Pick<Video, 'platform' | 'external_id' | 'video_url'> | null): string {
+  if (!video) return '#'
+  const externalId = video.external_id?.trim()
+  if (video.platform === 'douyin' && externalId) {
+    return `https://www.douyin.com/video/${externalId}`
+  }
+  if (video.platform === 'bilibili' && externalId) {
+    return `https://www.bilibili.com/video/${externalId}`
+  }
+  return video.video_url || '#'
+}
+
+export function getPlayableVideoUrl(video?: Pick<Video, 'platform' | 'video_url'> | null): string | null {
+  if (!video?.video_url) return null
+  if (video.video_url.toLowerCase().includes('.mp3')) return null
+  if (video.platform === 'douyin' && video.video_url.includes('/aweme/v1/play/')) {
+    return video.video_url
+  }
+  if (video.platform !== 'bilibili') {
+    return video.video_url
+  }
+  return null
 }

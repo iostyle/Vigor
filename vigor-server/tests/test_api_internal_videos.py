@@ -67,6 +67,7 @@ def _seed_videos(session_factory):
         platform="douyin",
         keyword_id=keyword.id,
         title="视频1",
+        video_url="https://www.douyin.com/aweme/v1/play/?video_id=v1",
         heat_score=9000.0,
         publish_time=now - timedelta(days=1),
     )
@@ -247,6 +248,77 @@ def test_get_video_comments_404_when_video_missing(client):
         "/api/videos/999999/comments", headers=HEADERS
     )
     assert response.status_code == 404
+
+
+def test_stream_douyin_video_proxies_range_request(client, monkeypatch):
+    module = importlib.import_module("app.api.internal.videos")
+    test_client, factory = client
+    v1_id, *_ = _seed_videos(factory)
+    captured = {}
+
+    class FakeResponse:
+        status_code = 206
+        headers = {
+            "content-type": "video/mp4",
+            "content-range": "bytes 0-3/8",
+            "accept-ranges": "bytes",
+            "content-length": "4",
+        }
+
+        def raise_for_status(self):
+            return None
+
+        def iter_bytes(self):
+            yield b"ft"
+            yield b"yp"
+
+        def close(self):
+            captured["response_closed"] = True
+
+    class FakeClient:
+        def __init__(self):
+            captured["client_closed"] = False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return None
+
+        def build_request(self, method, url, headers):
+            captured["method"] = method
+            captured["url"] = url
+            captured["headers"] = headers
+            return {"url": url, "headers": headers}
+
+        def send(self, request, stream):
+            captured["stream"] = stream
+            return FakeResponse()
+
+        def close(self):
+            captured["client_closed"] = True
+
+    monkeypatch.setattr(module.httpx, "Client", lambda **kwargs: FakeClient())
+    monkeypatch.setattr(module.settings, "DOUYIN_COOKIES", "sessionid=abc")
+
+    response = test_client.get(
+        f"/api/videos/{v1_id}/stream?api_key=test-key",
+        headers={"Range": "bytes=0-3"},
+    )
+
+    assert response.status_code == 206
+    assert response.content == b"ftyp"
+    assert response.headers["content-type"] == "video/mp4"
+    assert response.headers["content-range"] == "bytes 0-3/8"
+    assert response.headers["accept-ranges"] == "bytes"
+    assert captured["method"] == "GET"
+    assert captured["url"] == "https://www.douyin.com/aweme/v1/play/?video_id=v1"
+    assert captured["headers"]["Cookie"] == "sessionid=abc"
+    assert captured["headers"]["Range"] == "bytes=0-3"
+    assert captured["headers"]["Referer"] == "https://www.douyin.com/"
+    assert captured["stream"] is True
+    assert captured["response_closed"] is True
+    assert captured["client_closed"] is True
 
 
 def test_get_video_summary_with_comment_summary(client):

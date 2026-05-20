@@ -1,10 +1,13 @@
 from datetime import datetime, timedelta
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import httpx
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, verify_api_key
+from app.api.deps import get_db, verify_api_key, verify_api_key_value
+from app.config import settings
 from app.models import Comment, CommentSummary, Keyword, Video
 from app.schemas import (
     CommentResponse,
@@ -100,6 +103,73 @@ def _get_video_or_404(db: Session, video_id: int) -> Video:
             status_code=status.HTTP_404_NOT_FOUND, detail="Video not found"
         )
     return video
+
+
+def _proxy_headers(range_header: Optional[str]) -> dict[str, str]:
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
+        ),
+        "Referer": "https://www.douyin.com/",
+        "Cookie": settings.DOUYIN_COOKIES,
+    }
+    if range_header:
+        headers["Range"] = range_header
+    return headers
+
+
+@router.get("/{video_id}/stream")
+def stream_video(
+    video_id: int,
+    api_key: Optional[str] = Query(None),
+    range_header: Optional[str] = Header(None, alias="Range"),
+    db: Session = Depends(get_db),
+) -> Response:
+    verify_api_key_value(api_key)
+    video = _get_video_or_404(db, video_id)
+    if video.platform != "douyin" or not video.video_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Video stream not available",
+        )
+    if ".mp3" in video.video_url.lower():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Video stream not available",
+        )
+
+    client = httpx.Client(timeout=30.0, follow_redirects=True)
+    request = client.build_request(
+        "GET",
+        video.video_url,
+        headers=_proxy_headers(range_header),
+    )
+    upstream = client.send(request, stream=True)
+    upstream.raise_for_status()
+
+    headers = {}
+    for key in ("content-range", "accept-ranges", "content-length"):
+        value = upstream.headers.get(key)
+        if value:
+            headers[key] = value
+    headers.setdefault("accept-ranges", "bytes")
+
+    def _iter_stream():
+        try:
+            for chunk in upstream.iter_bytes():
+                if chunk:
+                    yield chunk
+        finally:
+            upstream.close()
+            client.close()
+
+    return StreamingResponse(
+        _iter_stream(),
+        status_code=upstream.status_code,
+        media_type=upstream.headers.get("content-type", "video/mp4"),
+        headers=headers,
+    )
 
 
 def _apply_summary_row(

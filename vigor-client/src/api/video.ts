@@ -1,6 +1,8 @@
 import request from './index'
 import type { Video, VideoListParams, VideoListResponse, Comment } from '@/types/video'
 
+const apiKey = import.meta.env.VITE_API_KEY || ''
+
 export interface GenerateSummaryResponse {
   task_id: number
   celery_task_id: string
@@ -30,6 +32,12 @@ export const videoApi = {
 
   getSummary(videoId: number): Promise<Video> {
     return request.get(`/api/internal/videos/${videoId}/summary`)
+  },
+
+  getStreamUrl(videoId: number): string {
+    const baseURL = (request.defaults.baseURL || '').replace(/\/$/, '')
+    const query = apiKey ? `?api_key=${encodeURIComponent(apiKey)}` : ''
+    return `${baseURL}/api/internal/videos/${videoId}/stream${query}`
   },
 
   generateSummary(videoId: number): Promise<GenerateSummaryResponse> {

@@ -37,28 +37,51 @@
             class="video-player"
           ></iframe>
 
-          <!-- 抖音:封面+跳转按钮 -->
+          <!-- 抖音:优先尝试 HTML5 直链播放,失败后回退到封面跳转 -->
           <div v-else-if="video.platform === 'douyin'" class="video-poster">
-            <img
-              v-if="video.cover_url"
-              :src="normalizeCover(video.cover_url)"
-              :alt="video.title"
-              referrerpolicy="no-referrer"
-            />
-            <div class="video-overlay">
-              <a
-                v-if="video.video_url"
-                :href="video.video_url"
-                target="_blank"
-                rel="noopener"
-                class="open-douyin-btn"
-              >
-                <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-                <span>在抖音打开</span>
-              </a>
-            </div>
+            <template v-if="playableVideoUrl && !inlineVideoFailed">
+              <video
+                :key="inlineStreamUrl || video.id"
+                ref="inlineVideoRef"
+                class="inline-video-player"
+                :src="inlineStreamUrl"
+                :poster="normalizeCover(video.cover_url)"
+                :data-video-id="video.id"
+                controls
+                playsinline
+                preload="metadata"
+                referrerpolicy="no-referrer"
+                @loadstart="handleInlineVideoLoadStart"
+                @loadedmetadata="handleInlineVideoReady"
+                @canplay="handleInlineVideoReady"
+                @error="handleInlineVideoError"
+              />
+              <div v-if="inlineVideoLoading" class="video-loading-overlay" aria-label="视频加载中">
+                <span class="video-loading-spinner"></span>
+              </div>
+            </template>
+            <template v-else>
+              <img
+                v-if="video.cover_url"
+                :src="normalizeCover(video.cover_url)"
+                :alt="video.title"
+                referrerpolicy="no-referrer"
+              />
+              <div class="video-overlay">
+                <a
+                  v-if="originalUrl !== '#'"
+                  :href="originalUrl"
+                  target="_blank"
+                  rel="noopener"
+                  class="open-douyin-btn"
+                >
+                  <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                  <span>在抖音打开</span>
+                </a>
+              </div>
+            </template>
           </div>
 
           <!-- Fallback:封面+查看原视频 -->
@@ -71,8 +94,8 @@
             />
             <div class="video-overlay">
               <a
-                v-if="video.video_url"
-                :href="video.video_url"
+                v-if="originalUrl !== '#'"
+                :href="originalUrl"
                 target="_blank"
                 rel="noopener"
                 class="open-douyin-btn"
@@ -284,7 +307,7 @@ import type { Category } from '@/api/category'
 import type { Video, Comment } from '@/types/video'
 import { videoApi } from '@/api/video'
 import { formatNumber, formatDate, formatHeatScore, formatSentiment } from '@/utils/format'
-import { normalizeCover } from '@/utils/media'
+import { getOriginalVideoUrl, getPlayableVideoUrl, normalizeCover } from '@/utils/media'
 import DomainHomePage from './DomainHomePage.vue'
 
 const message = useMessage()
@@ -310,6 +333,52 @@ let pollTimer: number | null = null
 const showComments = ref(false)
 const comments = ref<Comment[]>([])
 const loadingComments = ref(false)
+const inlineVideoRef = ref<HTMLVideoElement | null>(null)
+const inlineVideoFailed = ref(false)
+const inlineVideoLoading = ref(false)
+const activeInlineVideoId = ref<number | null>(null)
+
+function shouldLoadInlineVideo(video: Video | null) {
+  return Boolean(video?.id && video.platform === 'douyin' && getPlayableVideoUrl(video))
+}
+
+function unloadInlineVideo() {
+  const player = inlineVideoRef.value
+  if (!player) return
+  player.pause()
+  player.removeAttribute('src')
+  player.load()
+}
+
+function resetInlineVideoState() {
+  unloadInlineVideo()
+  activeInlineVideoId.value = props.video?.id ?? null
+  inlineVideoFailed.value = false
+  inlineVideoLoading.value = shouldLoadInlineVideo(props.video)
+}
+
+function isCurrentInlineVideo(event: Event) {
+  const player = event.currentTarget as HTMLVideoElement | null
+  return Number(player?.dataset.videoId) === activeInlineVideoId.value
+}
+
+function handleInlineVideoLoadStart(event: Event) {
+  if (isCurrentInlineVideo(event)) {
+    inlineVideoLoading.value = true
+  }
+}
+
+function handleInlineVideoReady(event: Event) {
+  if (isCurrentInlineVideo(event)) {
+    inlineVideoLoading.value = false
+  }
+}
+
+function handleInlineVideoError(event: Event) {
+  if (!isCurrentInlineVideo(event)) return
+  inlineVideoLoading.value = false
+  inlineVideoFailed.value = true
+}
 
 async function toggleComments() {
   showComments.value = !showComments.value
@@ -397,6 +466,7 @@ function pollForSummary(videoId: number, baselineGeneratedAt: string | null) {
 
 onUnmounted(() => {
   stopPolling()
+  unloadInlineVideo()
 })
 
 // 切换视频时重置本地状态,避免残留上个视频的评论列表 / 摘要生成状态
@@ -409,15 +479,23 @@ watch(
     showComments.value = false
     loadingComments.value = false
     generating.value = false
+    resetInlineVideoState()
     syncSummaryTaskStatus()
-  }
+  },
+  { immediate: true }
 )
 
-syncSummaryTaskStatus()
-
 const originalUrl = computed(() => {
-  if (!props.video) return '#'
-  return props.video.video_url || '#'
+  return getOriginalVideoUrl(props.video)
+})
+
+const playableVideoUrl = computed(() => {
+  return getPlayableVideoUrl(props.video)
+})
+
+const inlineStreamUrl = computed(() => {
+  if (!props.video?.id || !playableVideoUrl.value) return null
+  return videoApi.getStreamUrl(props.video.id)
 })
 
 const heatInfo = computed(() => formatHeatScore(props.video?.heat_score ?? null))
@@ -522,6 +600,44 @@ const generatedAtText = computed(() => {
   width: 100%;
   aspect-ratio: 16 / 9;
   background-color: #000;
+}
+
+.inline-video-player {
+  display: block;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background-color: #000;
+}
+
+.video-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  background-color: rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+.video-loading-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: video-loading-spin 0.8s linear infinite;
+}
+
+@keyframes video-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .video-poster {

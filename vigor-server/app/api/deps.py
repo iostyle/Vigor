@@ -1,6 +1,6 @@
 from typing import Generator
 
-from fastapi import HTTPException, Security, status
+from fastapi import HTTPException, Query, Security, status
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
@@ -18,12 +18,17 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def verify_api_key(
-    api_key: str | None = Security(api_key_header),
-) -> str:
+def verify_api_key_value(api_key: str | None) -> str:
     if not api_key or api_key != settings.API_KEY:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid or missing API key",
         )
     return api_key
+
+
+def verify_api_key(
+    api_key: str | None = Security(api_key_header),
+    api_key_query: str | None = Query(None, alias="api_key"),
+) -> str:
+    return verify_api_key_value(api_key or api_key_query)
