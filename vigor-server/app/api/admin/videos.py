@@ -43,6 +43,14 @@ _TIME_WINDOW_DELTAS: dict[str, Optional[timedelta]] = {
     "30d": timedelta(days=30),
     "all": None,
 }
+_PLATFORM_ALIASES = {"dy": "douyin", "bili": "bilibili"}
+
+
+def _normalize_platform(platform: Optional[str]) -> Optional[str]:
+    if platform is None:
+        return None
+    key = platform.strip().lower()
+    return _PLATFORM_ALIASES.get(key, key)
 
 
 def _apply_time_window(query, time_window: TimeWindow):
@@ -113,8 +121,9 @@ def list_videos(
     if keyword_id is not None:
         query = query.filter(Video.keyword_id == keyword_id)
 
-    if platform is not None:
-        query = query.filter(Video.platform == platform)
+    normalized_platform = _normalize_platform(platform)
+    if normalized_platform is not None:
+        query = query.filter(Video.platform == normalized_platform)
 
     if video_status != "all":
         query = query.filter(Video.status == video_status)

@@ -64,6 +64,7 @@ def _seed_videos(session_factory):
     now = datetime.utcnow()
     v1 = Video(
         external_id="v1",
+        platform="douyin",
         keyword_id=keyword.id,
         title="视频1",
         heat_score=9000.0,
@@ -71,6 +72,7 @@ def _seed_videos(session_factory):
     )
     v2 = Video(
         external_id="v2",
+        platform="douyin",
         keyword_id=keyword.id,
         title="视频2",
         heat_score=5000.0,
@@ -78,6 +80,7 @@ def _seed_videos(session_factory):
     )
     v3 = Video(
         external_id="v3",
+        platform="bilibili",
         keyword_id=other.id,
         title="视频3",
         heat_score=8000.0,
@@ -138,6 +141,18 @@ def test_list_videos_filters_by_keyword(client):
     body = response.json()
     assert body["total"] == 2
     assert all(v["external_id"] in ("v1", "v2") for v in body["data"])
+
+
+def test_list_videos_accepts_douyin_platform_alias(client):
+    test_client, factory = client
+    _seed_videos(factory)
+
+    response = test_client.get("/api/videos?platform=dy", headers=HEADERS)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 2
+    assert {v["platform"] for v in body["data"]} == {"douyin"}
 
 
 def test_list_videos_filters_by_time_window(client):

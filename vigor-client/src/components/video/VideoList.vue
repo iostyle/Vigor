@@ -5,7 +5,7 @@
       <div class="filters">
         <select v-model="platform" class="select" @change="handlePlatformChange">
           <option value="">全部</option>
-          <option value="dy">抖音</option>
+          <option value="douyin">抖音</option>
           <option value="bilibili">B站</option>
         </select>
         <select v-model="sortBy" class="select" @change="handleSortChange">

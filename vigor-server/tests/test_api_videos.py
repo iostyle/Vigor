@@ -48,6 +48,7 @@ def seed_data(test_db):
     videos = [
         Video(
             external_id="dy_1",
+            platform="douyin",
             keyword_id=keyword.id,
             title="recent fitness",
             author_name="alice",
@@ -59,6 +60,7 @@ def seed_data(test_db):
         ),
         Video(
             external_id="dy_2",
+            platform="douyin",
             keyword_id=keyword.id,
             title="week-old fitness",
             author_name="bob",
@@ -70,6 +72,7 @@ def seed_data(test_db):
         ),
         Video(
             external_id="dy_3",
+            platform="douyin",
             keyword_id=keyword.id,
             title="old fitness",
             like_count=300,
@@ -77,7 +80,8 @@ def seed_data(test_db):
             publish_time=now - timedelta(days=40),
         ),
         Video(
-            external_id="dy_4",
+            external_id="bili_4",
+            platform="bilibili",
             keyword_id=other_keyword.id,
             title="yoga",
             heat_score=70.0,
@@ -140,6 +144,17 @@ class TestListVideos:
         assert body["total"] == 1
         assert body["data"][0]["id"] == video.id
         assert body["data"][0]["status"] == "hidden"
+
+    def test_accepts_douyin_platform_alias(self, client, seed_data):
+        resp = client.get(
+            "/api/admin/videos",
+            params={"keyword_id": seed_data["keyword_id"], "platform": "dy"},
+        )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 3
+        assert {v["platform"] for v in body["data"]} == {"douyin"}
 
     def test_filter_24h_window(self, client, seed_data):
         resp = client.get(

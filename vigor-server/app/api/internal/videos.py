@@ -23,6 +23,14 @@ TimeWindow = Literal["1d", "3d", "7d", "15d", "30d"]
 SortField = Literal["heat_score", "publish_time"]
 
 _TIME_WINDOW_DAYS = {"1d": 1, "3d": 3, "7d": 7, "15d": 15, "30d": 30}
+_PLATFORM_ALIASES = {"dy": "douyin", "bili": "bilibili"}
+
+
+def _normalize_platform(platform: Optional[str]) -> Optional[str]:
+    if platform is None:
+        return None
+    key = platform.strip().lower()
+    return _PLATFORM_ALIASES.get(key, key)
 
 
 @router.get("", response_model=VideoListResponse)
@@ -51,8 +59,9 @@ def list_videos(
     if category_id is not None:
         query = query.filter(Keyword.category_id == category_id)
 
-    if platform is not None:
-        query = query.filter(Video.platform == platform)
+    normalized_platform = _normalize_platform(platform)
+    if normalized_platform is not None:
+        query = query.filter(Video.platform == normalized_platform)
 
     if time_window is not None:
         cutoff = datetime.utcnow() - timedelta(days=_TIME_WINDOW_DAYS[time_window])
