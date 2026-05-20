@@ -7,6 +7,7 @@ CLIENT_DIR="$ROOT_DIR/vigor-client"
 RUNTIME_DIR="$ROOT_DIR/.vigor-dev"
 LOG_DIR="$RUNTIME_DIR/logs"
 PID_DIR="$RUNTIME_DIR/pids"
+POETRY_BIN="${POETRY_BIN:-poetry}"
 
 API_PORT="${API_PORT:-8000}"
 CLIENT_PORT="${CLIENT_PORT:-3000}"
@@ -148,10 +149,10 @@ wait_for_http() {
 
 main() {
   require_command docker
-  require_command poetry
   require_command npm
   require_command curl
   require_command lsof
+  require_command "$POETRY_BIN"
 
   mkdir -p "$LOG_DIR" "$PID_DIR"
 
@@ -172,7 +173,7 @@ main() {
   info "安装后端依赖"
   (
     cd "$SERVER_DIR"
-    poetry install
+    "$POETRY_BIN" install --no-root
   )
 
   info "安装前端依赖"
@@ -184,14 +185,14 @@ main() {
   info "执行数据库迁移"
   (
     cd "$SERVER_DIR"
-    poetry run alembic upgrade head
+    "$POETRY_BIN" run alembic upgrade head
   )
 
-  start_process "api" "$SERVER_DIR" "poetry run uvicorn app.main:app --host ${API_HOST} --port ${API_PORT}"
+  start_process "api" "$SERVER_DIR" "\"$POETRY_BIN\" run uvicorn app.main:app --host ${API_HOST} --port ${API_PORT}"
   wait_for_http "http://127.0.0.1:${API_PORT}/docs" "后端 API"
 
-  start_process "celery-worker" "$SERVER_DIR" "poetry run celery -A app.celery_app worker -n vigor-worker@%h -Q crawler,processor,updater --loglevel=info"
-  start_process "celery-beat" "$SERVER_DIR" "poetry run celery -A app.celery_app beat --loglevel=info --schedule '$RUNTIME_DIR/celerybeat-schedule.db'"
+  start_process "celery-worker" "$SERVER_DIR" "\"$POETRY_BIN\" run celery -A app.celery_app worker -n vigor-worker@%h -Q crawler,processor,updater --loglevel=info"
+  start_process "celery-beat" "$SERVER_DIR" "\"$POETRY_BIN\" run celery -A app.celery_app beat --loglevel=info --schedule '$RUNTIME_DIR/celerybeat-schedule.db'"
   start_process "client" "$CLIENT_DIR" "npm run dev -- --host ${CLIENT_HOST} --port ${CLIENT_PORT}"
 
   cat <<EOF
