@@ -92,7 +92,56 @@ async def test_get_comments_sort_by_like_descending(client):
 
 
 @pytest.mark.asyncio
-async def test_real_mode_without_network_raises(monkeypatch):
+async def test_real_mode_search_uses_media_crawler(monkeypatch):
+    called = {}
+
+    async def fake_search(
+        self,
+        keyword,
+        limit,
+        include_comments=False,
+        comments_per_video=20,
+    ):
+        called["keyword"] = keyword
+        called["limit"] = limit
+        called["include_comments"] = include_comments
+        called["comments_per_video"] = comments_per_video
+        return [{"external_id": "real_aweme_001"}]
+
+    monkeypatch.setattr(DouyinClient, "_run_media_crawler_search", fake_search)
+
     real_client = DouyinClient(api_key="test_key", mock_mode=False)
-    with pytest.raises(NotImplementedError):
-        await real_client.search_videos("美食", limit=1)
+    videos = await real_client.search_videos(
+        "美食",
+        limit=1,
+        include_comments=True,
+        comments_per_video=3,
+    )
+
+    assert videos == [{"external_id": "real_aweme_001"}]
+    assert called == {
+        "keyword": "美食",
+        "limit": 1,
+        "include_comments": True,
+        "comments_per_video": 3,
+    }
+
+
+def test_real_mode_builds_media_crawler_env(monkeypatch):
+    monkeypatch.setenv("HTTP_PROXY", "")
+    monkeypatch.setenv("HTTPS_PROXY", "")
+    client = DouyinClient(
+        api_key="test_key",
+        mock_mode=False,
+        login_type="cookie",
+        cookies="LOGIN_STATUS=1",
+        enable_cdp=True,
+        headless=False,
+    )
+
+    env = client._media_crawler_env()
+
+    assert env["VIGOR_MC_LOGIN_TYPE"] == "cookie"
+    assert env["VIGOR_MC_COOKIES"] == "LOGIN_STATUS=1"
+    assert env["VIGOR_MC_ENABLE_CDP_MODE"] == "true"
+    assert env["VIGOR_MC_HEADLESS"] == "false"

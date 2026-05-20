@@ -57,6 +57,10 @@ def _build_douyin_client() -> PlatformClient:
         mock_mode=settings.DOUYIN_MOCK_MODE,
         base_url=settings.DOUYIN_API_BASE_URL,
         max_concurrency=settings.DOUYIN_MAX_CONCURRENCY,
+        login_type=settings.DOUYIN_LOGIN_TYPE,
+        cookies=settings.DOUYIN_COOKIES,
+        enable_cdp=settings.DOUYIN_ENABLE_CDP_MODE,
+        headless=settings.DOUYIN_HEADLESS,
     )
 
 

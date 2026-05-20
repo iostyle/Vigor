@@ -34,11 +34,19 @@ class DouyinClient:
         max_concurrency: int = 5,
         media_crawler_path: str | None = None,
         http_proxy: str | None = None,
+        login_type: str = "qrcode",
+        cookies: str = "",
+        enable_cdp: bool = False,
+        headless: bool = True,
     ):
         self.api_key = api_key
         self.mock_mode = mock_mode
         self.base_url = base_url.rstrip("/")
         self._semaphore = asyncio.Semaphore(max_concurrency)
+        self.login_type = login_type
+        self.cookies = cookies
+        self.enable_cdp = enable_cdp
+        self.headless = headless
         # MediaCrawler 集成配置
         self.media_crawler_path = (
             media_crawler_path
@@ -51,6 +59,21 @@ class DouyinClient:
         # 优先用 vendor_MediaCrawler 的 .venv python,否则 fallback sys.executable
         mc_venv_python = Path(self.media_crawler_path) / ".venv" / "bin" / "python"
         self.python_executable = str(mc_venv_python) if mc_venv_python.exists() else sys.executable
+
+    @staticmethod
+    def _bool_env(value: bool) -> str:
+        return "true" if value else "false"
+
+    def _media_crawler_env(self) -> dict[str, str]:
+        env = os.environ.copy()
+        if self.http_proxy:
+            env["HTTP_PROXY"] = self.http_proxy
+            env["HTTPS_PROXY"] = self.http_proxy
+        env["VIGOR_MC_LOGIN_TYPE"] = self.login_type
+        env["VIGOR_MC_COOKIES"] = self.cookies
+        env["VIGOR_MC_ENABLE_CDP_MODE"] = self._bool_env(self.enable_cdp)
+        env["VIGOR_MC_HEADLESS"] = self._bool_env(self.headless)
+        return env
 
     @staticmethod
     def _heat(like: int, comment: int, share: int) -> int:
@@ -158,10 +181,7 @@ class DouyinClient:
         existing_contents = self._count_lines(contents_file)
         existing_comments = self._count_lines(comments_file)
 
-        env = os.environ.copy()
-        if self.http_proxy:
-            env["HTTP_PROXY"] = self.http_proxy
-            env["HTTPS_PROXY"] = self.http_proxy
+        env = self._media_crawler_env()
 
         # MediaCrawler 一次搜索最少 10 条,向上取整
         effective_limit = max(limit, 10)
@@ -172,11 +192,15 @@ class DouyinClient:
             "--platform", "dy",
             "--keywords", keyword,
             "--type", "search",
+            "--lt", self.login_type,
             "--save_data_option", "jsonl",
             "--get_comment", "true" if include_comments else "false",
             "--get_sub_comment", "false",
+            "--headless", self._bool_env(self.headless),
             "--max_comments_count_singlenotes", str(comments_per_video),
         ]
+        if self.cookies:
+            cmd.extend(["--cookies", self.cookies])
 
         loop = asyncio.get_event_loop()
 
@@ -387,10 +411,7 @@ class DouyinClient:
         comments_file = mc_path / "data" / "douyin" / "jsonl" / f"detail_comments_{date_str}.jsonl"
         existing_comments = self._count_lines(comments_file)
 
-        env = os.environ.copy()
-        if self.http_proxy:
-            env["HTTP_PROXY"] = self.http_proxy
-            env["HTTPS_PROXY"] = self.http_proxy
+        env = self._media_crawler_env()
 
         cmd = [
             self.python_executable,
@@ -398,11 +419,15 @@ class DouyinClient:
             "--platform", "dy",
             "--type", "detail",
             "--specified_id", str(video_id),
+            "--lt", self.login_type,
             "--save_data_option", "jsonl",
             "--get_comment", "true",
             "--get_sub_comment", "false",
+            "--headless", self._bool_env(self.headless),
             "--max_comments_count_singlenotes", str(limit),
         ]
+        if self.cookies:
+            cmd.extend(["--cookies", self.cookies])
 
         loop = asyncio.get_event_loop()
 
