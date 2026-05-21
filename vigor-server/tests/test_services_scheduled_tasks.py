@@ -292,3 +292,67 @@ def test_dispatch_scheduled_update_category_passes_platform(monkeypatch):
         "source": "scheduled",
         "source_id": 12,
     }
+
+
+def test_dispatch_scheduled_crawl_keyword_dispatches_each_platform(monkeypatch):
+    calls: list[tuple[int, str, str, int]] = []
+    task = ScheduledTask(
+        id=13,
+        name="crawl keyword",
+        task_kind="crawl",
+        target_mode="keyword",
+        target_id=5,
+        platform="bilibili,douyin",
+        schedule_type="daily",
+        daily_time="02:00",
+        enabled=True,
+    )
+
+    def fake_dispatch_crawl_keyword(db, keyword_id, platform, **kwargs):
+        calls.append((keyword_id, platform, kwargs["source"], kwargs["source_id"]))
+        return [1000 + len(calls)], [f"celery-{platform}"]
+
+    monkeypatch.setattr(
+        "app.services.scheduled_tasks.dispatch_crawl_keyword",
+        fake_dispatch_crawl_keyword,
+    )
+
+    task_ids = dispatch_scheduled_task(object(), task)
+
+    assert task_ids == [1001, 1002]
+    assert calls == [
+        (5, "bilibili", "scheduled", 13),
+        (5, "douyin", "scheduled", 13),
+    ]
+
+
+def test_dispatch_scheduled_crawl_category_dispatches_each_platform(monkeypatch):
+    calls: list[tuple[int, str, str, int]] = []
+    task = ScheduledTask(
+        id=14,
+        name="crawl category",
+        task_kind="crawl",
+        target_mode="category",
+        target_id=7,
+        platform="bilibili,douyin",
+        schedule_type="daily",
+        daily_time="02:00",
+        enabled=True,
+    )
+
+    def fake_dispatch_crawl_category(db, category_id, platform, **kwargs):
+        calls.append((category_id, platform, kwargs["source"], kwargs["source_id"]))
+        return [2000 + len(calls)], [f"celery-{platform}"], 1
+
+    monkeypatch.setattr(
+        "app.services.scheduled_tasks.dispatch_crawl_category",
+        fake_dispatch_crawl_category,
+    )
+
+    task_ids = dispatch_scheduled_task(object(), task)
+
+    assert task_ids == [2001, 2002]
+    assert calls == [
+        (7, "bilibili", "scheduled", 14),
+        (7, "douyin", "scheduled", 14),
+    ]

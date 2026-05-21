@@ -33,10 +33,12 @@
             />
           </n-form-item>
           <n-form-item label="平台" path="platform">
-            <n-radio-group v-model:value="formData.platform">
-              <n-radio value="bilibili">B站</n-radio>
-              <n-radio value="douyin">抖音</n-radio>
-            </n-radio-group>
+            <n-checkbox-group v-model:value="formData.platforms">
+              <n-space>
+                <n-checkbox value="bilibili">B站</n-checkbox>
+                <n-checkbox value="douyin">抖音</n-checkbox>
+              </n-space>
+            </n-checkbox-group>
           </n-form-item>
           <div class="form-actions">
             <button
@@ -149,6 +151,8 @@
 import { ref, reactive, computed, onMounted, onUnmounted, h } from 'vue'
 import {
   NCard,
+  NCheckbox,
+  NCheckboxGroup,
   NDataTable,
   NForm,
   NFormItem,
@@ -157,6 +161,7 @@ import {
   NRadio,
   NRadioGroup,
   NSelect,
+  NSpace,
   NTag,
   useMessage
 } from 'naive-ui'
@@ -173,7 +178,7 @@ const formData = ref({
   mode: 'category' as 'keyword' | 'category',
   keyword_id: null as number | null,
   category_id: null as number | null,
-  platform: 'bilibili'
+  platforms: ['bilibili'] as string[]
 })
 
 const updateFormData = ref({
@@ -194,6 +199,7 @@ const updateTriggering = ref(false)
 
 const triggerDisabled = computed(() => {
   if (triggering.value) return true
+  if (!formData.value.platforms.length) return true
   if (formData.value.mode === 'keyword') return !formData.value.keyword_id
   return !formData.value.category_id
 })
@@ -429,17 +435,26 @@ async function handleTrigger() {
   triggering.value = true
   try {
     if (formData.value.mode === 'keyword') {
-      const res = await taskApi.triggerCrawl({
-        keyword_id: formData.value.keyword_id!,
-        platform: formData.value.platform
-      })
-      message.success(`爬取任务已触发 (Task ID: ${res.task_id})`)
+      const results = await Promise.all(
+        formData.value.platforms.map((platform) =>
+          taskApi.triggerCrawl({
+            keyword_id: formData.value.keyword_id!,
+            platform
+          })
+        )
+      )
+      message.success(`已触发 ${results.length} 个平台的爬取任务`)
     } else {
-      const res = await taskApi.triggerCrawlByCategory({
-        category_id: formData.value.category_id!,
-        platform: formData.value.platform
-      })
-      message.success(`已触发 ${res.keyword_count} 个关键词的爬取任务`)
+      const results = await Promise.all(
+        formData.value.platforms.map((platform) =>
+          taskApi.triggerCrawlByCategory({
+            category_id: formData.value.category_id!,
+            platform
+          })
+        )
+      )
+      const keywordCount = results.reduce((total, item) => total + item.keyword_count, 0)
+      message.success(`已触发 ${results.length} 个平台、${keywordCount} 个关键词的爬取任务`)
     }
     fetchTasks()
   } catch (error: any) {

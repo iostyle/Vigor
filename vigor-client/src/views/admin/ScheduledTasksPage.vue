@@ -101,10 +101,12 @@
             />
           </n-form-item>
           <n-form-item label="平台">
-            <n-radio-group v-model:value="crawlForm.platform">
-              <n-radio value="bilibili">B站</n-radio>
-              <n-radio value="douyin">抖音</n-radio>
-            </n-radio-group>
+            <n-checkbox-group v-model:value="crawlForm.platforms">
+              <n-space>
+                <n-checkbox value="bilibili">B站</n-checkbox>
+                <n-checkbox value="douyin">抖音</n-checkbox>
+              </n-space>
+            </n-checkbox-group>
           </n-form-item>
           <schedule-fields v-model="crawlForm" />
           <div class="form-actions">
@@ -217,10 +219,12 @@
           <n-input-number v-model:value="editingForm.target_id" :min="1" />
         </n-form-item>
         <n-form-item v-if="editingForm.task_kind === 'crawl'" label="平台">
-          <n-radio-group v-model:value="editingForm.platform">
-            <n-radio value="bilibili">B站</n-radio>
-            <n-radio value="douyin">抖音</n-radio>
-          </n-radio-group>
+          <n-checkbox-group v-model:value="editingForm.platforms">
+            <n-space>
+              <n-checkbox value="bilibili">B站</n-checkbox>
+              <n-checkbox value="douyin">抖音</n-checkbox>
+            </n-space>
+          </n-checkbox-group>
         </n-form-item>
         <n-form-item
           v-if="editingForm.task_kind === 'update' && editingForm.target_mode !== 'video'"
@@ -243,6 +247,8 @@ import { computed, defineComponent, h, onMounted, onUnmounted, reactive, ref } f
 import {
   NButton,
   NCard,
+  NCheckbox,
+  NCheckboxGroup,
   NDataTable,
   NEmpty,
   NForm,
@@ -274,13 +280,16 @@ import {
 import type { Keyword } from '@/types/keyword'
 import { buildKeywordOption } from '@/utils/keywordOptions'
 
-type ScheduleForm = ScheduledTaskInput
+type ScheduleFormState = Omit<ScheduledTaskInput, 'platform'> & {
+  platform?: string
+  platforms: string[]
+}
 
 const ScheduleFields = defineComponent({
   name: 'ScheduleFields',
   props: {
     modelValue: {
-      type: Object as () => ScheduleForm,
+      type: Object as () => ScheduleFormState,
       required: true
     }
   },
@@ -374,12 +383,13 @@ function timestampToTimeString(value: number | null) {
   return `${hour}:${minute}`
 }
 
-const createBaseForm = (taskKind: ScheduledTaskKind, targetMode: ScheduledTargetMode): ScheduleForm => ({
+const createBaseForm = (taskKind: ScheduledTaskKind, targetMode: ScheduledTargetMode): ScheduleFormState => ({
   name: '',
   task_kind: taskKind,
   target_mode: targetMode,
   target_id: null,
   platform: 'bilibili',
+  platforms: ['bilibili'],
   limit: taskKind === 'update' ? 100 : null,
   schedule_type: 'daily',
   interval_minutes: 60,
@@ -387,9 +397,9 @@ const createBaseForm = (taskKind: ScheduledTaskKind, targetMode: ScheduledTarget
   enabled: true
 })
 
-const crawlForm = reactive<ScheduleForm>(createBaseForm('crawl', 'category'))
-const updateForm = reactive<ScheduleForm>(createBaseForm('update', 'category'))
-const editingForm = ref<(ScheduleForm & { id: number }) | null>(null)
+const crawlForm = reactive<ScheduleFormState>(createBaseForm('crawl', 'category'))
+const updateForm = reactive<ScheduleFormState>(createBaseForm('update', 'category'))
+const editingForm = ref<(ScheduleFormState & { id: number }) | null>(null)
 const editingVisible = ref(false)
 
 const keywordOptions = ref<SelectOption[]>([])
@@ -480,6 +490,15 @@ const columns: DataTableColumns<ScheduledTask> = [
     }
   },
   {
+    title: '平台',
+    key: 'platform',
+    width: 120,
+    render(row) {
+      if (row.task_kind !== 'crawl') return '-'
+      return platformText(row.platform)
+    }
+  },
+  {
     title: '计划',
     key: 'schedule',
     width: 150,
@@ -531,6 +550,16 @@ function targetModeText(mode: ScheduledTargetMode) {
     video: '视频'
   }
   return map[mode]
+}
+
+function platformText(value: string | null | undefined) {
+  const map: Record<string, string> = {
+    bilibili: 'B站',
+    douyin: '抖音'
+  }
+  return parsePlatformList(value)
+    .map((platform) => map[platform] || platform)
+    .join('、')
 }
 
 function formatMinuteTime(value: string | null) {
@@ -587,26 +616,31 @@ function taskStatusText(status: string) {
   return map[status] || status
 }
 
-function isValidForm(form: ScheduleForm) {
+function isValidForm(form: ScheduleFormState) {
   if (!form.target_id) return false
   if (form.task_kind === 'crawl' && form.target_mode === 'video') return false
+  if (form.task_kind === 'crawl' && !form.platforms.length) return false
   if (form.schedule_type === 'interval') return !!form.interval_minutes
   return !!form.daily_time
 }
 
-function normalizeForm(form: ScheduleForm): ScheduledTaskInput {
+function normalizeForm(form: ScheduleFormState): ScheduledTaskInput {
   const isInterval = form.schedule_type === 'interval'
   return {
-    ...form,
     name: buildTaskName(form),
-    platform: form.task_kind === 'crawl' ? form.platform : undefined,
+    task_kind: form.task_kind,
+    target_mode: form.target_mode,
+    target_id: form.target_id,
+    platform: form.task_kind === 'crawl' ? form.platforms.join(',') : undefined,
     limit: form.task_kind === 'update' && form.target_mode !== 'video' ? form.limit : null,
+    schedule_type: form.schedule_type,
     interval_minutes: isInterval ? form.interval_minutes : null,
-    daily_time: isInterval ? null : form.daily_time
+    daily_time: isInterval ? null : form.daily_time,
+    enabled: form.enabled
   }
 }
 
-function buildTaskName(form: ScheduleForm) {
+function buildTaskName(form: ScheduleFormState) {
   const kindText = form.task_kind === 'crawl' ? '定时爬取' : '定时更新'
   const modeText = targetModeText(form.target_mode)
   const scheduleText =
@@ -678,7 +712,7 @@ async function handleCreateUpdate() {
   await createTask(updateForm, '定时更新任务已创建')
 }
 
-async function createTask(form: ScheduleForm, successMessage: string) {
+async function createTask(form: ScheduleFormState, successMessage: string) {
   saving.value = true
   try {
     await scheduledTaskApi.create(normalizeForm(form))
@@ -713,6 +747,7 @@ function openEdit(row: ScheduledTask) {
     target_mode: row.target_mode,
     target_id: row.target_id,
     platform: row.platform || 'bilibili',
+    platforms: parsePlatformList(row.platform),
     limit: row.limit,
     schedule_type: row.schedule_type,
     interval_minutes: row.interval_minutes || 60,
@@ -720,6 +755,14 @@ function openEdit(row: ScheduledTask) {
     enabled: row.enabled
   }
   editingVisible.value = true
+}
+
+function parsePlatformList(value: string | null | undefined) {
+  const platforms = (value || 'bilibili')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+  return platforms.length ? platforms : ['bilibili']
 }
 
 function handleEditKindChange(value: ScheduledTaskKind) {
