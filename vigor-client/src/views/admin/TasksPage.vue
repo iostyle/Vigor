@@ -346,8 +346,10 @@ const columns: DataTableColumns<Task> = [
           {
             trigger: 'hover',
             placement: 'left',
-            width: 'trigger',
             scrollable: true,
+            style: {
+              maxWidth: 'calc(100vw - 64px)'
+            },
             contentClass: 'error-message-popover-shell'
           },
           {
@@ -650,7 +652,8 @@ onUnmounted(() => {
 }
 
 .error-message-popover {
-  width: min(860px, calc(100vw - 96px));
+  width: clamp(360px, 72vw, 960px);
+  max-width: calc(100vw - 96px);
   max-height: min(620px, calc(100vh - 128px));
   margin: 0;
   padding: 10px 2px;
@@ -664,7 +667,7 @@ onUnmounted(() => {
 }
 
 :deep(.error-message-popover-shell) {
-  max-width: min(900px, calc(100vw - 64px));
+  max-width: calc(100vw - 64px);
 }
 
 @media (max-width: 768px) {
