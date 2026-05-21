@@ -174,6 +174,7 @@ def dispatch_update_category(
     enqueue: Callable[..., str] = enqueue_celery_task,
     source: str = "manual",
     source_id: int | None = None,
+    platform: str | None = None,
 ) -> tuple[list[int], list[str], int]:
     category = db.query(Category).filter(Category.id == category_id).first()
     if category is None:
@@ -197,13 +198,11 @@ def dispatch_update_category(
             detail="No active keywords in this category",
         )
 
-    videos = (
-        db.query(Video)
-        .filter(Video.keyword_id.in_(keyword_ids))
-        .order_by(Video.publish_time.desc().nullslast(), Video.id.desc())
-        .limit(limit)
-        .all()
-    )
+    query = db.query(Video).filter(Video.keyword_id.in_(keyword_ids))
+    if platform:
+        query = query.filter(Video.platform == platform)
+
+    videos = query.order_by(Video.publish_time.desc().nullslast(), Video.id.desc()).limit(limit).all()
     if not videos:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

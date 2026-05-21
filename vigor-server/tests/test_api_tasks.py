@@ -75,8 +75,23 @@ def _create_paused_keyword(session, keyword="paused") -> Keyword:
 def _create_video(session, keyword_id: int) -> Video:
     video = Video(
         external_id="v1",
+        platform="bilibili",
         keyword_id=keyword_id,
         title="test video",
+    )
+    session.add(video)
+    session.commit()
+    session.refresh(video)
+    return video
+
+
+def _create_category_video(session, keyword_id: int, external_id: str, platform: str) -> Video:
+    video = Video(
+        external_id=external_id,
+        platform=platform,
+        keyword_id=keyword_id,
+        title=f"{platform} video",
+        publish_time=datetime(2026, 5, 21, 9, 0, 0),
     )
     session.add(video)
     session.commit()
@@ -182,6 +197,24 @@ class TestTriggerUpdate:
         )
 
         assert response.status_code == 400
+
+    def test_category_dispatch_filters_by_platform_when_provided(self, client):
+        kw = _create_keyword(client.session)
+        bili_video = _create_category_video(client.session, kw.id, "bili-1", "bilibili")
+        _create_category_video(client.session, kw.id, "douyin-1", "douyin")
+
+        task_ids, celery_task_ids, video_count = tasks_api.dispatch_update_category(
+            client.session,
+            kw.category_id,
+            10,
+            tasks_api._enqueue_celery_task,
+            platform="bilibili",
+        )
+
+        assert video_count == 1
+        assert celery_task_ids == ["task-update_videos"]
+        task = client.session.query(CrawlTask).filter_by(id=task_ids[0]).first()
+        assert task.video_ids == f"[{bili_video.id}]"
 
 
 class TestListTasks:

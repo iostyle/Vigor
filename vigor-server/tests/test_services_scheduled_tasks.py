@@ -4,6 +4,7 @@ from app.models.scheduled_task import ScheduledTask
 from app.models.scheduled_task_run import ScheduledTaskRun
 from app.services.scheduled_tasks import (
     compute_next_run,
+    dispatch_scheduled_task,
     run_due_scheduled_tasks,
 )
 
@@ -251,3 +252,43 @@ def test_run_due_scheduled_tasks_records_error_summary(monkeypatch):
     assert session.runs[0].status == "failed"
     assert session.runs[0].failed_count == 1
     assert session.runs[0].error_message == "定时任务 11: keyword disabled"
+
+
+def test_dispatch_scheduled_update_category_passes_platform(monkeypatch):
+    captured: dict[str, object] = {}
+    task = ScheduledTask(
+        id=12,
+        name="update category",
+        task_kind="update",
+        target_mode="category",
+        target_id=3,
+        platform="bilibili",
+        limit=10,
+        schedule_type="daily",
+        daily_time="01:00",
+        enabled=True,
+    )
+
+    def fake_dispatch_update_category(db, category_id, limit, **kwargs):
+        captured["category_id"] = category_id
+        captured["limit"] = limit
+        captured["platform"] = kwargs.get("platform")
+        captured["source"] = kwargs.get("source")
+        captured["source_id"] = kwargs.get("source_id")
+        return [901], ["celery-901"], 1
+
+    monkeypatch.setattr(
+        "app.services.scheduled_tasks.dispatch_update_category",
+        fake_dispatch_update_category,
+    )
+
+    task_ids = dispatch_scheduled_task(object(), task)
+
+    assert task_ids == [901]
+    assert captured == {
+        "category_id": 3,
+        "limit": 10,
+        "platform": "bilibili",
+        "source": "scheduled",
+        "source_id": 12,
+    }

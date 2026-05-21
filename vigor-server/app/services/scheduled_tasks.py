@@ -119,6 +119,7 @@ def dispatch_scheduled_task(
                 task.limit or 100,
                 source=source,
                 source_id=source_id,
+                platform=task.platform or "bilibili",
             )
         else:
             raise HTTPException(
