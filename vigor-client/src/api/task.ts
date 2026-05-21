@@ -58,6 +58,7 @@ export interface Task {
   id: number
   keyword_id: number
   task_type: string
+  platform: string | null
   source: 'manual' | 'scheduled' | 'system' | 'legacy'
   source_id: number | null
   status: string

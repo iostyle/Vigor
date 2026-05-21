@@ -23,15 +23,6 @@ from app.services.task_dispatcher import (
 logger = logging.getLogger(__name__)
 
 
-def parse_scheduled_platforms(platform: str | None) -> list[str]:
-    platforms = [
-        item.strip()
-        for item in (platform or "bilibili").split(",")
-        if item.strip()
-    ]
-    return platforms or ["bilibili"]
-
-
 def compute_next_run(task: ScheduledTask, now: datetime | None = None) -> datetime | None:
     if not task.enabled:
         return None
@@ -84,33 +75,27 @@ def dispatch_scheduled_task(
 ) -> list[int]:
     source_id = source_id if source_id is not None else task.id
     if task.task_kind == "crawl":
-        all_task_ids: list[int] = []
         if task.target_mode == "keyword":
-            for platform in parse_scheduled_platforms(task.platform):
-                task_ids, _ = dispatch_crawl_keyword(
-                    db,
-                    task.target_id,
-                    platform,
-                    source=source,
-                    source_id=source_id,
-                )
-                all_task_ids.extend(task_ids)
+            task_ids, _ = dispatch_crawl_keyword(
+                db,
+                task.target_id,
+                task.platform or "bilibili",
+                source=source,
+                source_id=source_id,
+            )
         elif task.target_mode == "category":
-            for platform in parse_scheduled_platforms(task.platform):
-                task_ids, _, _ = dispatch_crawl_category(
-                    db,
-                    task.target_id,
-                    platform,
-                    source=source,
-                    source_id=source_id,
-                )
-                all_task_ids.extend(task_ids)
+            task_ids, _, _ = dispatch_crawl_category(
+                db,
+                task.target_id,
+                task.platform or "bilibili",
+                source=source,
+                source_id=source_id,
+            )
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid crawl target",
             )
-        task_ids = all_task_ids
     elif task.task_kind == "update":
         if task.target_mode == "video":
             task_ids, _ = dispatch_update_video(

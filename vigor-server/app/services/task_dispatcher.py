@@ -23,6 +23,15 @@ def enqueue_celery_task(task_name: str, *args) -> str:
     return f"celery-{task_name}-placeholder"
 
 
+def parse_platforms(platform: str | None, default: str = "douyin") -> list[str]:
+    platforms = [
+        item.strip()
+        for item in (platform or default).split(",")
+        if item.strip()
+    ]
+    return platforms or [default]
+
+
 def get_active_keyword_or_404(db: Session, keyword_id: int) -> Keyword:
     keyword = db.query(Keyword).filter(Keyword.id == keyword_id).first()
     if not keyword:
@@ -48,21 +57,32 @@ def dispatch_crawl_keyword(
 ) -> tuple[list[int], list[str]]:
     get_active_keyword_or_404(db, keyword_id)
 
-    task = CrawlTask(
-        keyword_id=keyword_id,
-        task_type="crawl",
-        source=source,
-        source_id=source_id,
-        status="pending",
-        videos_crawled=0,
-        started_at=datetime.utcnow(),
-    )
-    db.add(task)
+    tasks: list[CrawlTask] = []
+    platforms = parse_platforms(platform)
+    for current_platform in platforms:
+        task = CrawlTask(
+            keyword_id=keyword_id,
+            task_type="crawl",
+            platform=current_platform,
+            source=source,
+            source_id=source_id,
+            status="pending",
+            videos_crawled=0,
+            started_at=datetime.utcnow(),
+        )
+        db.add(task)
+        tasks.append(task)
     db.commit()
-    db.refresh(task)
+    for task in tasks:
+        db.refresh(task)
 
-    celery_task_id = enqueue("crawl_keyword", keyword_id, platform, task.id)
-    return [task.id], [celery_task_id]
+    task_ids: list[int] = []
+    celery_task_ids: list[str] = []
+    for task in tasks:
+        celery_task_id = enqueue("crawl_keyword", keyword_id, task.platform, task.id)
+        task_ids.append(task.id)
+        celery_task_ids.append(celery_task_id)
+    return task_ids, celery_task_ids
 
 
 def dispatch_crawl_category(
@@ -94,30 +114,32 @@ def dispatch_crawl_category(
             detail="No active keywords in this category",
         )
 
-    tasks: list[CrawlTask] = []
-    for kw in keywords:
-        task = CrawlTask(
-            keyword_id=kw.id,
-            task_type="crawl",
-            source=source,
-            source_id=source_id,
-            status="pending",
-            videos_crawled=0,
-            started_at=datetime.utcnow(),
-        )
-        db.add(task)
-        tasks.append(task)
+    tasks: list[tuple[Keyword, str, CrawlTask]] = []
+    for current_platform in parse_platforms(platform):
+        for kw in keywords:
+            task = CrawlTask(
+                keyword_id=kw.id,
+                task_type="crawl",
+                platform=current_platform,
+                source=source,
+                source_id=source_id,
+                status="pending",
+                videos_crawled=0,
+                started_at=datetime.utcnow(),
+            )
+            db.add(task)
+            tasks.append((kw, current_platform, task))
     db.commit()
-    for task in tasks:
+    for _, _, task in tasks:
         db.refresh(task)
 
     task_ids: list[int] = []
     celery_task_ids: list[str] = []
-    for keyword, task in zip(keywords, tasks):
-        celery_task_id = enqueue("crawl_keyword", keyword.id, platform, task.id)
+    for keyword, current_platform, task in tasks:
+        celery_task_id = enqueue("crawl_keyword", keyword.id, current_platform, task.id)
         task_ids.append(task.id)
         celery_task_ids.append(celery_task_id)
-    return task_ids, celery_task_ids, len(keywords)
+    return task_ids, celery_task_ids, len(tasks)
 
 
 def dispatch_update_video(
@@ -228,6 +250,7 @@ def dispatch_update_videos(
             keyword_id=video.keyword_id,
             video_ids=json.dumps([video.id]),
             task_type="update",
+            platform=video.platform,
             source=source,
             source_id=source_id,
             status="pending",

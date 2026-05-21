@@ -231,6 +231,7 @@ def trigger_generate_summary(
         keyword_id=video.keyword_id,
         video_ids=json.dumps([video_id]),
         task_type="summary",
+        platform=video.platform,
         source="manual",
         status="pending",
         videos_crawled=0,

@@ -295,7 +295,7 @@ def test_dispatch_scheduled_update_category_passes_platform(monkeypatch):
 
 
 def test_dispatch_scheduled_crawl_keyword_dispatches_each_platform(monkeypatch):
-    calls: list[tuple[int, str, str, int]] = []
+    captured: dict[str, object] = {}
     task = ScheduledTask(
         id=13,
         name="crawl keyword",
@@ -309,8 +309,11 @@ def test_dispatch_scheduled_crawl_keyword_dispatches_each_platform(monkeypatch):
     )
 
     def fake_dispatch_crawl_keyword(db, keyword_id, platform, **kwargs):
-        calls.append((keyword_id, platform, kwargs["source"], kwargs["source_id"]))
-        return [1000 + len(calls)], [f"celery-{platform}"]
+        captured["keyword_id"] = keyword_id
+        captured["platform"] = platform
+        captured["source"] = kwargs["source"]
+        captured["source_id"] = kwargs["source_id"]
+        return [1001, 1002], ["celery-bilibili", "celery-douyin"]
 
     monkeypatch.setattr(
         "app.services.scheduled_tasks.dispatch_crawl_keyword",
@@ -320,14 +323,16 @@ def test_dispatch_scheduled_crawl_keyword_dispatches_each_platform(monkeypatch):
     task_ids = dispatch_scheduled_task(object(), task)
 
     assert task_ids == [1001, 1002]
-    assert calls == [
-        (5, "bilibili", "scheduled", 13),
-        (5, "douyin", "scheduled", 13),
-    ]
+    assert captured == {
+        "keyword_id": 5,
+        "platform": "bilibili,douyin",
+        "source": "scheduled",
+        "source_id": 13,
+    }
 
 
 def test_dispatch_scheduled_crawl_category_dispatches_each_platform(monkeypatch):
-    calls: list[tuple[int, str, str, int]] = []
+    captured: dict[str, object] = {}
     task = ScheduledTask(
         id=14,
         name="crawl category",
@@ -341,8 +346,11 @@ def test_dispatch_scheduled_crawl_category_dispatches_each_platform(monkeypatch)
     )
 
     def fake_dispatch_crawl_category(db, category_id, platform, **kwargs):
-        calls.append((category_id, platform, kwargs["source"], kwargs["source_id"]))
-        return [2000 + len(calls)], [f"celery-{platform}"], 1
+        captured["category_id"] = category_id
+        captured["platform"] = platform
+        captured["source"] = kwargs["source"]
+        captured["source_id"] = kwargs["source_id"]
+        return [2001, 2002], ["celery-bilibili", "celery-douyin"], 2
 
     monkeypatch.setattr(
         "app.services.scheduled_tasks.dispatch_crawl_category",
@@ -352,7 +360,9 @@ def test_dispatch_scheduled_crawl_category_dispatches_each_platform(monkeypatch)
     task_ids = dispatch_scheduled_task(object(), task)
 
     assert task_ids == [2001, 2002]
-    assert calls == [
-        (7, "bilibili", "scheduled", 14),
-        (7, "douyin", "scheduled", 14),
-    ]
+    assert captured == {
+        "category_id": 7,
+        "platform": "bilibili,douyin",
+        "source": "scheduled",
+        "source_id": 14,
+    }

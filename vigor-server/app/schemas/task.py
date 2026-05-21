@@ -24,6 +24,7 @@ class CrawlTaskResponse(BaseModel):
     keyword_id: Optional[int] = None
     video_ids: list[int] = []
     task_type: str
+    platform: Optional[str] = None
     source: CrawlTaskSource = "manual"
     source_id: Optional[int] = None
     status: CrawlTaskStatus

@@ -263,6 +263,14 @@ const columns: DataTableColumns<Task> = [
     }
   },
   {
+    title: '平台',
+    key: 'platform',
+    width: 90,
+    render(row) {
+      return platformText(row.platform)
+    }
+  },
+  {
     title: '来源',
     key: 'source',
     width: 120,
@@ -375,6 +383,14 @@ function getTaskErrorMessage(row: Task) {
     return '任务失败,但后端未返回错误详情'
   }
   return null
+}
+
+function platformText(value: string | null | undefined) {
+  const map: Record<string, string> = {
+    bilibili: 'B站',
+    douyin: '抖音'
+  }
+  return value ? map[value] || value : '-'
 }
 
 function getErrorPreview(text: string) {

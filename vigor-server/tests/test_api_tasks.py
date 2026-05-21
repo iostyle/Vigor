@@ -118,6 +118,22 @@ class TestTriggerCrawl:
         assert task.task_type == "crawl"
         assert task.keyword_id == kw.id
         assert task.source == "manual"
+        assert task.platform == "douyin"
+
+    def test_creates_task_per_platform_when_platform_contains_multiple_values(self, client):
+        kw = _create_keyword(client.session)
+
+        response = client.post(
+            "/api/admin/tasks/crawl",
+            json={"keyword_id": kw.id, "platform": "bilibili,douyin"},
+        )
+
+        assert response.status_code == 202
+        body = response.json()
+        assert body["status"] == "pending"
+
+        tasks = client.session.query(CrawlTask).order_by(CrawlTask.id).all()
+        assert [task.platform for task in tasks] == ["bilibili", "douyin"]
 
     def test_returns_404_when_keyword_missing(self, client):
         response = client.post(
@@ -222,6 +238,7 @@ class TestListTasks:
         kw = _create_keyword(client.session)
         t1 = CrawlTask(
             keyword_id=kw.id,
+            platform="douyin",
             task_type="crawl",
             status="success",
             videos_crawled=5,
@@ -230,6 +247,7 @@ class TestListTasks:
         )
         t2 = CrawlTask(
             keyword_id=kw.id,
+            platform="bilibili",
             task_type="update",
             status="success",
             videos_crawled=2,
@@ -247,9 +265,11 @@ class TestListTasks:
         assert body["total"] == 2
         assert len(body["data"]) == 2
         assert body["data"][0]["task_type"] == "update"
+        assert body["data"][0]["platform"] == "bilibili"
         assert body["data"][0]["source"] == "scheduled"
         assert body["data"][0]["source_id"] == 3
         assert body["data"][1]["task_type"] == "crawl"
+        assert body["data"][1]["platform"] == "douyin"
         assert body["data"][1]["source"] == "manual"
 
     def test_pagination(self, client):
