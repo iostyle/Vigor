@@ -376,7 +376,92 @@ class DouyinClient:
                 "publish_time": publish_time.isoformat(),
             }
 
-        raise NotImplementedError("真实抖音 API 调用需要授权后接入")
+        return await self._run_media_crawler_detail(video_id)
+
+    async def _run_media_crawler_detail(self, video_id: str) -> dict:
+        """调用 MediaCrawler detail 模式刷新单个抖音视频详情"""
+        mc_path = Path(self.media_crawler_path)
+        if not mc_path.exists():
+            raise RuntimeError(
+                f"MediaCrawler 未安装在 {mc_path},请设置 MEDIA_CRAWLER_PATH 环境变量"
+            )
+
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        contents_file = mc_path / "data" / "douyin" / "jsonl" / f"detail_contents_{date_str}.jsonl"
+        existing_contents = self._count_lines(contents_file)
+
+        env = self._media_crawler_env()
+        cmd = [
+            self.python_executable,
+            "main.py",
+            "--platform", "dy",
+            "--type", "detail",
+            "--specified_id", str(video_id),
+            "--lt", self.login_type,
+            "--save_data_option", "jsonl",
+            "--get_comment", "false",
+            "--get_sub_comment", "false",
+            "--headless", self._bool_env(self.headless),
+        ]
+        if self.cookies:
+            cmd.extend(["--cookies", self.cookies])
+
+        loop = asyncio.get_event_loop()
+
+        def _run_subprocess() -> tuple[int, str, str]:
+            proc = subprocess.Popen(
+                cmd,
+                cwd=str(mc_path),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            stdout, stderr = proc.communicate(timeout=600)
+            return proc.returncode, stdout, stderr
+
+        returncode, stdout, stderr = await loop.run_in_executor(None, _run_subprocess)
+        if returncode != 0:
+            raise RuntimeError(
+                f"MediaCrawler 详情子进程失败 (code={returncode}):\nstdout:\n{stdout[-2000:]}\nstderr:\n{stderr[-2000:]}"
+            )
+
+        return self._read_detail_from_jsonl(contents_file, video_id, existing_contents)
+
+    def _read_detail_from_jsonl(
+        self,
+        contents_file: Path,
+        video_id: str,
+        start_line: int = 0,
+    ) -> dict:
+        matches: list[dict] = []
+        if contents_file.exists():
+            with open(contents_file, "r", encoding="utf-8") as f:
+                for idx, line in enumerate(f):
+                    if idx < start_line:
+                        continue
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        raw = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    aweme_id = str(raw.get("aweme_id") or raw.get("id") or "")
+                    if aweme_id == str(video_id):
+                        matches.append(raw)
+
+        if not matches and start_line > 0:
+            return self._read_detail_from_jsonl(contents_file, video_id, 0)
+
+        if not matches:
+            return {
+                "external_id": str(video_id),
+                "unavailable": True,
+                "reason": "MediaCrawler detail did not return matching aweme",
+            }
+
+        return self._normalize_dy_item(matches[-1])
 
     async def get_comments(
         self,

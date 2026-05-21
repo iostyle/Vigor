@@ -275,6 +275,78 @@ def test_update_videos_task_triggers_comment_recrawl_when_comment_growth_exceeds
     }
 
 
+def test_refresh_videos_updates_douyin_detail_fields(
+    updater_module,
+    session_factory,
+    fixed_now,
+    monkeypatch,
+):
+    session = session_factory()
+    cat = Category(name="测试")
+    session.add(cat)
+    session.commit()
+    session.refresh(cat)
+    keyword = Keyword(keyword="电影", category_id=cat.id, status="active")
+    session.add(keyword)
+    session.commit()
+    session.refresh(keyword)
+
+    video = Video(
+        platform="douyin",
+        external_id="douyin-detail",
+        keyword_id=keyword.id,
+        title="旧标题",
+        author_name="旧作者",
+        author_id="old_author",
+        cover_url="https://old-cover",
+        video_url="https://old-video",
+        like_count=1,
+        comment_count=1,
+        share_count=1,
+        heat_score=1.0,
+        publish_time=fixed_now - timedelta(days=1),
+        last_updated_at=fixed_now - timedelta(hours=2),
+    )
+    session.add(video)
+    session.commit()
+    session.refresh(video)
+
+    client = FakeDouyinClient(
+        {
+            "douyin-detail": {
+                "external_id": "douyin-detail",
+                "title": "新标题",
+                "author_name": "新作者",
+                "author_id": "new_author",
+                "cover_url": "https://new-cover",
+                "video_url": "https://new-video",
+                "like_count": 100,
+                "comment_count": 20,
+                "share_count": 5,
+                "publish_time": fixed_now.isoformat(),
+            }
+        }
+    )
+    monkeypatch.setattr(updater_module, "get_client", lambda platform: client)
+    monkeypatch.setattr(updater_module, "calculate_heat_score", lambda *args: 999.0)
+    monkeypatch.setattr(updater_module.celery_app, "send_task", lambda *args, **kwargs: None)
+
+    updated_count, comment_crawl_count = updater_module._refresh_videos(session, [video], fixed_now)
+
+    assert updated_count == 1
+    assert comment_crawl_count == 1
+    assert video.title == "新标题"
+    assert video.author_name == "新作者"
+    assert video.author_id == "new_author"
+    assert video.cover_url == "https://new-cover"
+    assert video.video_url == "https://new-video"
+    assert video.like_count == 100
+    assert video.comment_count == 20
+    assert video.share_count == 5
+    assert video.heat_score == 999.0
+    assert video.last_updated_at == fixed_now
+
+
 def test_update_videos_task_queue_configuration(updater_module):
     assert updater_module.update_videos_task.name == "app.tasks.updater.update_videos"
     assert updater_module.update_videos_task.queue == "updater"

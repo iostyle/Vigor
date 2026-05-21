@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 
 from app.services.douyin_client import DouyinClient
@@ -145,3 +147,60 @@ def test_real_mode_builds_media_crawler_env(monkeypatch):
     assert env["VIGOR_MC_COOKIES"] == "LOGIN_STATUS=1"
     assert env["VIGOR_MC_ENABLE_CDP_MODE"] == "true"
     assert env["VIGOR_MC_HEADLESS"] == "false"
+
+
+@pytest.mark.asyncio
+async def test_real_mode_get_video_detail_reads_media_crawler_detail_jsonl(tmp_path, monkeypatch):
+    mc_path = tmp_path / "MediaCrawler"
+    data_dir = mc_path / "data" / "douyin" / "jsonl"
+    data_dir.mkdir(parents=True)
+    detail_file = data_dir / "detail_contents_2026-05-21.jsonl"
+    detail_file.write_text(
+        '{"aweme_id":"old","desc":"旧视频","liked_count":"1","comment_count":"2","share_count":"3"}\n',
+        encoding="utf-8",
+    )
+
+    class FakeProcess:
+        returncode = 0
+
+        def communicate(self, timeout):
+            assert timeout == 600
+            with detail_file.open("a", encoding="utf-8") as f:
+                f.write(
+                    '{"aweme_id":"target","desc":"目标视频","liked_count":"10",'
+                    '"comment_count":"20","share_count":"30","nickname":"作者",'
+                    '"sec_uid":"sec_1","cover_url":"https://cover",'
+                    '"video_download_url":"https://video","create_time":1779346800}\n'
+                )
+            return "", ""
+
+    def fake_popen(cmd, cwd, env, stdout, stderr, text):
+        assert "--specified_id" in cmd
+        assert cmd[cmd.index("--specified_id") + 1] == "target"
+        assert cwd == str(mc_path)
+        return FakeProcess()
+
+    monkeypatch.setattr("app.services.douyin_client.subprocess.Popen", fake_popen)
+    monkeypatch.setattr("app.services.douyin_client.datetime", FixedDateTime)
+
+    client = DouyinClient(api_key="test_key", mock_mode=False, media_crawler_path=str(mc_path))
+
+    detail = await client.get_video_detail("target")
+
+    assert detail["external_id"] == "target"
+    assert detail["title"] == "目标视频"
+    assert detail["author_name"] == "作者"
+    assert detail["author_id"] == "sec_1"
+    assert detail["cover_url"] == "https://cover"
+    assert detail["video_url"] == "https://video"
+    assert detail["like_count"] == 10
+    assert detail["comment_count"] == 20
+    assert detail["share_count"] == 30
+
+
+class FixedDateTime(datetime):
+    @classmethod
+    def now(cls, tz=None):
+        if tz is None:
+            return cls(2026, 5, 21, 9, 0, 0)
+        return cls(2026, 5, 21, 9, 0, 0, tzinfo=tz)

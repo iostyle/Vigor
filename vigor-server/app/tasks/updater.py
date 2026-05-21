@@ -12,6 +12,18 @@ from app.services.heat_calculator import calculate_heat_score
 from app.services.platform_client import get_client
 
 
+def _parse_detail_time(value):
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str) and value:
+        normalized = value.replace("Z", "+00:00")
+        try:
+            return datetime.fromisoformat(normalized).replace(tzinfo=None)
+        except ValueError:
+            return None
+    return None
+
+
 def _is_due_for_update(video: Video, now: datetime) -> bool:
     last_updated_at = video.last_updated_at or video.crawled_at or datetime.min
     heat_score = video.heat_score or 0.0
@@ -63,6 +75,13 @@ def _refresh_videos(
             video.last_updated_at = now
             continue
 
+        for field in ("title", "author_name", "author_id", "cover_url", "video_url"):
+            value = detail.get(field)
+            if value:
+                setattr(video, field, value)
+        publish_time = _parse_detail_time(detail.get("publish_time"))
+        if publish_time:
+            video.publish_time = publish_time
         video.like_count = detail.get("like_count", 0)
         video.comment_count = detail.get("comment_count", 0)
         video.share_count = detail.get("share_count", 0)
