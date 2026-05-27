@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     REDIS_URL: str
     CELERY_BROKER_URL: str
     CELERY_RESULT_BACKEND: str
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:5173"
     DOUYIN_API_KEY: str
     DOUBAO_API_KEY: str
     DOUBAO_ENDPOINT_ID: str
@@ -26,6 +27,10 @@ class Settings(BaseSettings):
     BILIBILI_MOCK_MODE: bool = True
     BILIBILI_MAX_CONCURRENCY: int = 3
     ENVIRONMENT: str = "development"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
 
 
 settings = Settings()

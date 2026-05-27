@@ -42,6 +42,36 @@ def test_protected_endpoints_require_api_key():
         assert response.status_code == 403
 
 
+def test_cors_allows_client_dev_port_from_env():
+    with TestClient(app) as client:
+        response = client.options(
+            "/api/internal/videos",
+            headers={
+                "Origin": "http://localhost:3001",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "x-api-key",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3001"
+
+
+def test_cors_allows_loopback_client_dev_port_from_env():
+    with TestClient(app) as client:
+        response = client.options(
+            "/api/admin/categories",
+            headers={
+                "Origin": "http://127.0.0.1:3001",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "x-api-key",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:3001"
+
+
 def test_app_metadata():
     assert app.title == "Vigor Server"
     assert app.version == "0.1.0"

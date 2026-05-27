@@ -13,6 +13,7 @@ from app.api.admin.videos import router as admin_videos_router
 from app.api.internal.categories import router as internal_categories_router
 from app.api.internal.stats import router as internal_stats_router
 from app.api.internal.videos import router as internal_videos_router
+from app.config import settings
 
 
 @asynccontextmanager
@@ -30,7 +31,7 @@ app = FastAPI(
 # CORS 中间件配置
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
